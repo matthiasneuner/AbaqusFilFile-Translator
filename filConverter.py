@@ -13,10 +13,8 @@ if __name__ == "__main__":
         print('')
         printKeywords()
         
-#    fn = sys.argv[1]
-#    jobFile = sys.argv[2]
-    fn = 'jobLShape.fil'
-    jobFile = 'export.inp'
+    fn = sys.argv[1]
+    jobFile = sys.argv[2]
     
     exportJobs = parseInputFile(jobFile)
     
