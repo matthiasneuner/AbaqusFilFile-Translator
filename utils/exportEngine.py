@@ -87,15 +87,15 @@ class ExportEngine:
             
     def finishAndParseIncrement(self, recordContent):
         if self.currentState == 'model setup':
-            geometryTimesetNumber = 1
-            self.ensightCase.setCurrentTime(geometryTimesetNumber, 1.0)
+            geometryTimesetNumber = None #2
+#            self.ensightCase.setCurrentTime(geometryTimesetNumber, 1.0)
             geometry = self.createEnsightGeometryFromModel()
             self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
             self.currentState = 'increment parsing'
             
         elif self.currentState == 'increment parsing':
             self.nIncrements +=1
-            self.ensightCase.setCurrentTime(2, self.currentIncrement['tTotal'])
+            self.ensightCase.setCurrentTime(1, self.currentIncrement['tTotal'])
             print('{:<25}{:>15.5f}'.format('parsing increment tTotal:',self.currentIncrement['tTotal']))
             
             for entry in self.perNodeJobs:
@@ -105,7 +105,7 @@ class ExportEngine:
                 resultTypeLength = entry['dimensions'] 
                 jobName = entry['exportName']
                 enSightVar = self.createEnsightPerNodeVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength)
-                self.ensightCase.writeVariableTrendChunk(enSightVar, 2)
+                self.ensightCase.writeVariableTrendChunk(enSightVar, 1)
                 del enSightVar
                                     
             for entry in self.perElementJobs:
@@ -114,7 +114,7 @@ class ExportEngine:
                 resultIndices = entry['data']
                 jobName = entry['exportName']
                 enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices)
-                self.ensightCase.writeVariableTrendChunk(enSightVar, 2)
+                self.ensightCase.writeVariableTrendChunk(enSightVar, 1)
                 del enSightVar
                 
             del self.currentIncrement

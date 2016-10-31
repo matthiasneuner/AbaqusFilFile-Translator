@@ -302,7 +302,7 @@ class EnsightChunkWiseCase:
     def __init__(self, directory, caseName, writeTransientSingleFiles = True):
         self.directory = directory
         self.caseName = caseName
-        self.caseFileNamePrefix = os.path.join(directory, caseName)  
+        self.caseFileNamePrefix = caseName #os.path.join(directory, caseName)  
         self.writeTransientSingleFiles = writeTransientSingleFiles
         self.timeAndFileSets = {}
         self.geometryTrends = {}
@@ -316,10 +316,11 @@ class EnsightChunkWiseCase:
         
     def writeGeometryTrendChunk(self, ensightGeometry, timeAndFileSetNumber=1):
         
-        fileName = ('{:}'*4).format(self.caseFileNamePrefix,
+        fileName = ('{:}'*3).format(self.caseFileNamePrefix,
                                     ensightGeometry.name,
                                     ".geo",
-                                    str(0).zfill(3))
+#                                    str(0).zfill(3)
+                                    )
         
         if not ensightGeometry.name in self.geometryTrends:
             self.geometryTrends[ensightGeometry.name] = timeAndFileSetNumber
@@ -334,10 +335,11 @@ class EnsightChunkWiseCase:
         
     def writeVariableTrendChunk(self, ensightVariable, timeAndFileSetNumber=2):
         
-        fileName = ('{:}'*4).format(self.caseFileNamePrefix,
+        fileName = ('{:}'*3).format(self.caseFileNamePrefix,
                                     ensightVariable.name,
                                     ".var",
-                                    str(0).zfill(3))
+#                                    str(0).zfill(3)
+                                    )
         if not ensightVariable.name in self.variableTrends:
             self.variableTrends[ensightVariable.name] = timeAndFileSetNumber, ensightVariable.varType
             with open(fileName ,mode='wb') as f:
@@ -373,13 +375,15 @@ class EnsightChunkWiseCase:
             
             cf.write("GEOMETRY\n")
             for geometryName, tAndFSetNum in self.geometryTrends.items():
-                geometryTSn = tAndFSetNum              
-                geometryFSn = tAndFSetNum              
-                cf.write("model: {:} {:} {:} \n".format(geometryTSn, geometryFSn, self.caseFileNamePrefix+geometryName+".geo***"))
+#                geometryTSn = tAndFSetNum              
+#                geometryFSn = tAndFSetNum              
+                geometryTSn = ''
+                geometryFSn = ''              
+                cf.write("model: {:} {:} {:} \n".format(geometryTSn, geometryFSn, self.caseFileNamePrefix+geometryName+".geo"))
                 
             cf.write("VARIABLE\n")
             for variableName, (tAndFSetNum, variableType) in self.variableTrends.items():
-                cf.write("{:}: {:} {:} {:} {:}.var***\n".format(
+                cf.write("{:}: {:} {:} {:} {:}.var\n".format(
                     variableType,
                     tAndFSetNum,
                     tAndFSetNum,

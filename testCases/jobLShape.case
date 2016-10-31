@@ -2,11 +2,6 @@ FORMAT
 type: ensight gold
 TIME
 time set: 1 noDesc
-number of steps: 1
-filename start number: 0
-filename increment: 1
-time values: 1.0
-time set: 2 noDesc
 number of steps: 10
 filename start number: 0
 filename increment: 1
@@ -22,13 +17,11 @@ time values: 0.1
 1.0
 FILE
 file set: 1 
-number of steps: 1 
-file set: 2 
 number of steps: 10 
 GEOMETRY
-model: 1 1 ./jobLShapegeometry.geo*** 
+model:   jobLShapegeometry.geo 
 VARIABLE
-scalar per element: 2 2 S_1_11 ./jobLShapeS_1_11.var***
-scalar per element: 2 2 S_1_12 ./jobLShapeS_1_12.var***
-scalar per element: 2 2 S_1_22 ./jobLShapeS_1_22.var***
-vector per node: 2 2 nodeDisplacements ./jobLShapenodeDisplacements.var***
+scalar per element: 1 1 S_1_22 jobLShapeS_1_22.var
+vector per node: 1 1 nodeDisplacements jobLShapenodeDisplacements.var
+scalar per element: 1 1 S_1_11 jobLShapeS_1_11.var
+scalar per element: 1 1 S_1_12 jobLShapeS_1_12.var
