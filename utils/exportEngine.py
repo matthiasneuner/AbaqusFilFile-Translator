@@ -155,7 +155,7 @@ class ExportEngine:
         return enSightVar
         
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
-        enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
+        enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices[0]),)
         sdvResults = self.currentIncrement[resultLocation][jobElSetPartName]
         sdvResults = { ensElType : np.asarray(elResults,)[:,resultIndices] for ensElType, elResults in sdvResults.items()}
         enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = sdvResults
