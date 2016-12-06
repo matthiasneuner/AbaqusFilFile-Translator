@@ -1,0 +1,19 @@
+*defineElementType, element=U3, shape=quad4
+*ensightPerNodeVariable, set=mainPart, exportName=nodeDisplacements, source=U, dimensions=3,
+0,1
+*ensightPerElementVariable, set=ALL, exportName=STRESS_IP1, source=SDV
+123,124,125,126,127,128
+*ensightPerElementVariable, set=ALL, exportName=STRESS_IP2, source=SDV
+258,259,260,261,262,263
+*ensightPerElementVariable, set=ALL, exportName=STRESS_IP3, source=SDV
+393,394,395,396,397,398
+*ensightPerElementVariable, set=ALL, exportName=STRESS_IP4, source=SDV
+528,529,530,531,532,533
+*ensightPerElementVariable, set=ALL, exportName=STRAIN_IP1, source=SDV
+129,130,131,132,133,134
+*ensightPerElementVariable, set=ALL, exportName=STRAIN_IP2, source=SDV
+264,265,266,267,268,269
+*ensightPerElementVariable, set=ALL, exportName=STRAIN_IP3, source=SDV
+399,400,401,402,403,404
+*ensightPerElementVariable, set=ALL, exportName=STRAIN_IP4, source=SDV
+534,535,536,537,538,539

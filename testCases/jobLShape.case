@@ -21,7 +21,7 @@ number of steps: 10
 GEOMETRY
 model:   jobLShapegeometry.geo 
 VARIABLE
-scalar per element: 1 1 S_1_22 jobLShapeS_1_22.var
 vector per node: 1 1 nodeDisplacements jobLShapenodeDisplacements.var
-scalar per element: 1 1 S_1_11 jobLShapeS_1_11.var
 scalar per element: 1 1 S_1_12 jobLShapeS_1_12.var
+scalar per element: 1 1 S_1_22 jobLShapeS_1_22.var
+scalar per element: 1 1 S_1_11 jobLShapeS_1_11.var

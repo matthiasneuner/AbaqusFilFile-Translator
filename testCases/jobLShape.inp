@@ -1,6 +1,6 @@
 *HEADING
-***User element, Type=U3, Nodes=4, coordinates=2, Properties=10, Variables=100, i properties=0
-**1, 2, 
+*User element, Type=U3, Nodes=4, coordinates=2, Properties=10, Variables=100, i properties=0
+1, 2, 
 *include, input=lShape.inp
 ***Element, Type=U3, Elset=uels
 **2000, 1000, 1001, 3001, 3000

@@ -2100,7 +2100,7 @@
    2099,         990.,          30.
    2100,         990.,          20.
    2101,         990.,          10.
-*Element, type=CPS4, elset=testEls
+*Element, type=U3, elset=testEls
   1,    1,    8,  410,  203
   2,    8,    9,  411,  410
   3,    9,   10,  412,  411
