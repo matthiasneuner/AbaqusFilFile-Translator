@@ -34,7 +34,10 @@ if __name__ == "__main__":
         currentIndex = 0
         
         while currentIndex < len(words):
-            recordLength = eE.filInt(words[currentIndex])[0]                
+            recordLength = eE.filInt(words[currentIndex])[0]  
+            if recordLength==2:
+                print('found a record with 0 length content, possibly aborted Abaqus analysis')
+                break                                     
             recordType = eE.filInt(words[currentIndex+1])[0]
             recordContent = words[currentIndex+2 : currentIndex+recordLength]
             success = exportEngine.computeRecord(recordLength, recordType, recordContent)

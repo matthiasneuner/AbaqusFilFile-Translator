@@ -7,7 +7,8 @@ Created on Fri Oct 28 13:43:53 2016
 """
 
 import numpy as np
-import collections
+from collections import OrderedDict, defaultdict
+from utils.OrderedDefaultDict import OrderedDefaultDict
 import utils.ensightgoldformat as es
 
 def filInt(word):
@@ -41,7 +42,7 @@ class ExportEngine:
         for entry in exportJobs.get('*defineElementType', []):
             self.ensightElementTypeMappings[entry['element']] = entry['shape']
             
-        self.abqNodes = collections.OrderedDict()
+        self.abqNodes = OrderedDict()
         self.abqElements = {}
         self.abqElSets = {}
         self.abqElSetToEnsightPartMappings = {}
@@ -72,8 +73,6 @@ class ExportEngine:
 }
     
     def computeRecord(self, recordLength, recordType, recordContent):
-        
-        
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]     
 #            print(doc)
@@ -149,16 +148,20 @@ class ExportEngine:
         return geometry
         
     def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
-        nodalVarTable = np.asarray([nodeVals[resultIndices] for nodeNum, nodeVals in self.currentIncrement[resultLocation].items() ])    
+        varDict = self.currentIncrement['nodeResults'][resultLocation]
+        nodalVarTable = np.asarray([nodeVals[resultIndices] for nodeNum, nodeVals in varDict.items() ])    
         partsDict = {self.abqElSetToEnsightPartMappings[jobElSetPartName] : ('coordinates', nodalVarTable)}
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
         return enSightVar
         
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices[0]),)
-        sdvResults = self.currentIncrement[resultLocation][jobElSetPartName]
-        sdvResults = { ensElType : np.asarray(elResults,)[:,resultIndices] for ensElType, elResults in sdvResults.items()}
-        enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = sdvResults
+        varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
+
+        varDict = { ensElType : np.asarray([ np.concatenate(chunks) for chunks in elResults.values() ])[:,resultIndices]
+                                           for ensElType, elResults in varDict.items()}
+
+        enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = varDict
         return enSightVar
         
     def outputDefinition(self, recordContent):
@@ -185,23 +188,24 @@ class ExportEngine:
         elNum = filInt(rec[0])[0]
         self.currentElementNum = elNum #abqElements[elNum]
         self.currentIpt = filFlag(rec[1])
-#            
+           
     def handlePerElementOutput(self, rec, location, appendGaussPt=True):
         res = filDouble(rec)
         currentIncrement = self.currentIncrement    
         currentSetName = self.currentSetName
         currentEnsightElementType =self.currentEnsightElementType
+        currentElementNum = self.currentElementNum
         
         if appendGaussPt:
             location += '@'+str(self.currentIpt)
 
-        insertlocation = currentIncrement.setdefault(location, {}).setdefault(currentSetName,{}).setdefault(currentEnsightElementType,[])
-        insertlocation.append(res)
+        insertLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum]
+        insertLocation.append(res)
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
         vals = filDouble(rec[1:])
-        self.currentIncrement['U'][node] = vals
+        self.currentIncrement['nodeResults']['U'][node] = vals
     
     def addNode(self, recordContent):
         node = filInt(recordContent[0])[0]   
@@ -240,7 +244,6 @@ class ExportEngine:
         currentIncrement['tStep'] = tStep
         currentIncrement['nStep'] = nStep
         currentIncrement['timeInc'] = timeInc
-        currentIncrement['U'] = collections.OrderedDict()
-#        currentIncrement['SDV'] = {}
-#        currentIncrement['S'] = {}
-#        currentIncrement['E'] = {}
+        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: OrderedDefaultDict(list))))
+        currentIncrement['nodeResults'] = defaultdict(OrderedDict)
+
