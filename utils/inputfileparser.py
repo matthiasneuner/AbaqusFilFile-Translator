@@ -7,14 +7,12 @@ Created on Tue Sep 22 18:56:03 2015
 
 import numpy as np
 from os.path import dirname, join
-#from workbench.utility.misc import flagDict
 import textwrap
 
 dTypes = {int : "integer",
           float: "float",
           str: "string",          
-          "numpy": "numpy array",
-#          flagDict : "boolean options"
+          "npInt": "numpy int array",
           }
     
 typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqus Element',
@@ -36,7 +34,9 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'exportName':      (str, "export Name of the variable"),
                          'source':          (str, 'Abaqus variable identifier'),
                          'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
-                         'data':            (int, "indices of the Abaqus source Variable")}),
+                         'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
+                         'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
+                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
                                
                                
                     '*include': ("(optional) load extra .inp file (fragment), use relative path to current .inp",
@@ -104,8 +104,8 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
                 data = lineElements
                 mType = getMapType(keyword, "data")
                 if mType is not None:
-                    if mType == "numpy":
-                        data = np.array([npPrepare(x) for x in data], dtype = np.double)
+                    if mType == "npInt":
+                        data = np.array([npPrepare(x) for x in data], dtype = np.int)
                     else:    
                         data = [mType(d) for d in data]
                 fileDict[keyword][-1]['data'].append(data)

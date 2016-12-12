@@ -75,8 +75,6 @@ class ExportEngine:
     def computeRecord(self, recordLength, recordType, recordContent):
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]     
-#            print(doc)
-#            print(recordLength)
             action(recordContent)
             return True
             
@@ -86,15 +84,15 @@ class ExportEngine:
             
     def finishAndParseIncrement(self, recordContent):
         if self.currentState == 'model setup':
-            geometryTimesetNumber = None #2
-#            self.ensightCase.setCurrentTime(geometryTimesetNumber, 1.0)
+            geometryTimesetNumber = None 
             geometry = self.createEnsightGeometryFromModel()
             self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
             self.currentState = 'increment parsing'
             
         elif self.currentState == 'increment parsing':
             self.nIncrements +=1
-            self.ensightCase.setCurrentTime(1, self.currentIncrement['tTotal'])
+            timeSetID = 1
+            self.ensightCase.setCurrentTime(timeSetID, self.currentIncrement['tTotal'])
             print('{:<25}{:>15.5f}'.format('parsing increment tTotal:',self.currentIncrement['tTotal']))
             
             for entry in self.perNodeJobs:
@@ -104,16 +102,21 @@ class ExportEngine:
                 resultTypeLength = entry['dimensions'] 
                 jobName = entry['exportName']
                 enSightVar = self.createEnsightPerNodeVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength)
-                self.ensightCase.writeVariableTrendChunk(enSightVar, 1)
+                self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
                 del enSightVar
                                     
             for entry in self.perElementJobs:
                 jobElSetPartName = entry['set']
                 resultLocation = entry['source']
-                resultIndices = entry['data']
+                resultIndices = entry['data'][0]
                 jobName = entry['exportName']
-                enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices)
-                self.ensightCase.writeVariableTrendChunk(enSightVar, 1)
+                nCount = entry.get('periodicalPattern', 1)
+                nShift = entry.get('periodicalShift', 0)
+                for i in range(nCount):
+                    enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, 
+                            jobName + (str(i+1) if nCount > 1 else ''), 
+                            resultLocation, resultIndices + i*nShift)
+                    self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
                 del enSightVar
                 
             del self.currentIncrement
@@ -155,7 +158,7 @@ class ExportEngine:
         return enSightVar
         
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
-        enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices[0]),)
+        enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
         varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
 
         varDict = { ensElType : np.asarray([ np.concatenate(chunks) for chunks in elResults.values() ])[:,resultIndices]
@@ -177,7 +180,6 @@ class ExportEngine:
             self.currentEnsightElementType = self.ensightElementTypeMappings[filStrippedString(recordContent[2])]
             
         elif flag == 1:
-            # print('nodel output')
             setName = filStrippedString(recordContent[1])
             
         if not setName:
@@ -219,7 +221,7 @@ class ExportEngine:
         self.abqElements[elNum] = (elType, elabqNodes)
     
     def addElset(self, recordContent):
-        setName = filStrippedString(recordContent[0]) #.tostring().decode('UTF-8')
+        setName = filStrippedString(recordContent[0])
         if not setName:
             setName = 'mainPart'
         self.currentSetName = setName
