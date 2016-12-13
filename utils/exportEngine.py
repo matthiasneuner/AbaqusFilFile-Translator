@@ -76,6 +76,7 @@ class ExportEngine:
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]     
             action(recordContent)
+#            print(doc)
             return True
             
         else:

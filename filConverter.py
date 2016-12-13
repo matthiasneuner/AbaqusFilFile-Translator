@@ -1,5 +1,7 @@
 import sys
+import os
 import numpy as np
+import math
 
 import utils.exportEngine as eE
 from utils.inputfileparser import parseInputFile, printKeywords
@@ -25,24 +27,53 @@ if __name__ == "__main__":
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
     
-    with open(fn, 'rb') as fh:
-        fil = np.fromfile(fn, dtype='b')
-        words = fil.reshape( -1 , 513*8 )
+#    with open(fn, 'rb') as fh:
+
+    
+    chunkSize = 513*8 
+    batchSize = chunkSize * 4096 * 32# 
+    fileStat = os.stat(fn)
+    fileSize = fileStat.st_size
+    
+    numberOfBatchSteps = math.ceil(fileSize / batchSize)
+    
+#    print(fileSize)
+    print("file has a size of {:} bytes".format(fileSize))
+    print("file will be processed in {:} steps".format(numberOfBatchSteps))
+    
+    
+    
+    batchIdx = 0
+    currentIndex = 0
+    fn = np.memmap(fn, dtype='b', mode='r+', )
+    while batchIdx < fileSize:
+        fileRemainder = fileSize - batchIdx
+        idxEnd = batchIdx + (batchSize if fileRemainder >= batchSize else fileRemainder)
+        fil = fn[batchIdx :   idxEnd]
+        words = fil.reshape( -1 , chunkSize )
         words = words[:, 4:-4]
         words = words.reshape(-1, 8)
         
-        currentIndex = 0
-        
         while currentIndex < len(words):
             recordLength = eE.filInt(words[currentIndex])[0]  
-            if recordLength==2:
+            if recordLength<=2:
                 print('found a record with 0 length content, possibly aborted Abaqus analysis')
-                break                                     
+                break
+            if currentIndex + recordLength > len(words):
+                batchIdx +=  ( math.floor(currentIndex/512))* 513 * 8
+                currentIndex =  ( (currentIndex%512) )
+                break
             recordType = eE.filInt(words[currentIndex+1])[0]
             recordContent = words[currentIndex+2 : currentIndex+recordLength]
             success = exportEngine.computeRecord(recordLength, recordType, recordContent)
             currentIndex += recordLength
-        exportEngine.finalize()
+        if currentIndex == len(words):
+            currentIndex = 0
+            batchIdx += batchSize
+            
+        del fil, words
+            
+    exportEngine.finalize()
         
     print('*'*40)
     print('Summary of .fil file:')
