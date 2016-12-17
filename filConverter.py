@@ -27,21 +27,15 @@ if __name__ == "__main__":
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
     
-#    with open(fn, 'rb') as fh:
-
-    
-    chunkSize = 513*8 
-    batchSize = chunkSize * 4096 * 32# 
+    chunkSize = 513* wordsize
+    batchSize = chunkSize * 4096 * 32 # = ~ 538 MByte
     fileStat = os.stat(fn)
     fileSize = fileStat.st_size
     
     numberOfBatchSteps = math.ceil(fileSize / batchSize)
     
-#    print(fileSize)
     print("file has a size of {:} bytes".format(fileSize))
     print("file will be processed in {:} steps".format(numberOfBatchSteps))
-    
-    
     
     batchIdx = 0
     currentIndex = 0
@@ -49,7 +43,7 @@ if __name__ == "__main__":
     while batchIdx < fileSize:
         fileRemainder = fileSize - batchIdx
         idxEnd = batchIdx + (batchSize if fileRemainder >= batchSize else fileRemainder)
-        fil = fn[batchIdx :   idxEnd]
+        fil = np.copy(fn[batchIdx :   idxEnd])
         words = fil.reshape( -1 , chunkSize )
         words = words[:, 4:-4]
         words = words.reshape(-1, 8)
@@ -60,8 +54,8 @@ if __name__ == "__main__":
                 print('found a record with 0 length content, possibly aborted Abaqus analysis')
                 break
             if currentIndex + recordLength > len(words):
-                batchIdx +=  ( math.floor(currentIndex/512))* 513 * 8
-                currentIndex =  ( (currentIndex%512) )
+                batchIdx += int(math.floor(currentIndex/512))* 513 * 8  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
+                currentIndex =  ( (currentIndex%512) )                  # of course, the restart at the present index
                 break
             recordType = eE.filInt(words[currentIndex+1])[0]
             recordContent = words[currentIndex+2 : currentIndex+recordLength]
@@ -70,7 +64,6 @@ if __name__ == "__main__":
         if currentIndex == len(words):
             currentIndex = 0
             batchIdx += batchSize
-            
         del fil, words
             
     exportEngine.finalize()
