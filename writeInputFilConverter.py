@@ -10,7 +10,7 @@ import numpy as np
 
 if __name__ == "__main__":
     
-    localStateVars = 25
+    localStateVars = 6
     globalStateVars = 2*6
     noIntPoint = 4
     alphaPIdx = 1

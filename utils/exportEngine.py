@@ -54,6 +54,7 @@ class ExportEngine:
         self.currentIpt = 1
         self.nIncrements = 0
         
+        print(exportName)
         self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
         
         self.knownRecords = { 1 : ('Element header record', self.elementHeaderRecord),
@@ -61,6 +62,7 @@ class ExportEngine:
             11 :('S output', lambda x : self.handlePerElementOutput(x, 'S')),
             21 :('E output', lambda x : self.handlePerElementOutput(x, 'E')),
             101: ('U output', self.handleUOutput),
+            201: ('NT output', self.handleNTOutput),
             1901 : ('node definition', self.addNode),
             1900: ('element definition', self.addElement),
             1911: ('output request definition', self.outputDefinition),
@@ -161,9 +163,20 @@ class ExportEngine:
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
         varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
+        
+        newVarDict = {}
+        allElResults = []
+        for ensElType, elDict in varDict.items():
+            for elNum, elResult in elDict.items():
+                print("elNum {:}, {:}".format(elNum, elResult))
+                allElResults.append(elResult)
 
-        varDict = { ensElType : np.asarray([ np.concatenate(chunks) for chunks in elResults.values() ])[:,resultIndices]
-                                           for ensElType, elResults in varDict.items()}
+            table = np.asarray(allElResults)
+            exportResults = table[:, resultIndices]
+            newVarDict[ensElType] = exportResults
+
+        # varDict = { ensElType : np.asarray([ np.concatenate(chunks) for chunks in elResults.values() ])[:,resultIndices] for ensElType, elResults in varDict.items()}
+        varDict = newVarDict
 
         enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = varDict
         return enSightVar
@@ -202,13 +215,28 @@ class ExportEngine:
         if appendGaussPt:
             location += '@'+str(self.currentIpt)
 
-        insertLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum]
-        insertLocation.append(res)
+        if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
+            newDict = OrderedDict([ ( int(elNo), None) for elNo in self.abqElSets[currentSetName]] )
+
+            currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  newDict
+            print("CREATED {:}".format(newDict))
+
+        # insertLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum]
+        currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum] = res
+        
+        # print("per el output: {:} in {:} : {:}".format(currentElementNum, currentSetName, res[4]))
+        # print(insertLocation)
+        # insertLocation.append(res)
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
         vals = filDouble(rec[1:])
         self.currentIncrement['nodeResults']['U'][node] = vals
+
+    def handleNTOutput(self, rec):
+        node = filInt(rec[0])[0]
+        vals = filDouble(rec[1:])
+        self.currentIncrement['nodeResults']['NT'][node] = vals
     
     def addNode(self, recordContent):
         node = filInt(recordContent[0])[0]   
@@ -220,6 +248,7 @@ class ExportEngine:
         elType = filStrippedString(recordContent[1])
         elabqNodes = filInt(recordContent[2:])
         self.abqElements[elNum] = (elType, elabqNodes)
+        print("el {:}: {:}".format(elNum, elabqNodes))
     
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -227,6 +256,9 @@ class ExportEngine:
             setName = 'mainPart'
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
+
+        print(setName)
+        print(abqElements)
         self.abqElSets[setName] = abqElements
 
     def contAddElset(self, recordContent):
@@ -247,6 +279,7 @@ class ExportEngine:
         currentIncrement['tStep'] = tStep
         currentIncrement['nStep'] = nStep
         currentIncrement['timeInc'] = timeInc
-        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: OrderedDefaultDict(list))))
+        # currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: OrderedDefaultDict(list))))
+        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda :{}) ))
         currentIncrement['nodeResults'] = defaultdict(OrderedDict)
 

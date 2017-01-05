@@ -20,7 +20,8 @@ if __name__ == "__main__":
     
     exportJobs = parseInputFile(jobFile)
     
-    exportName  = ''.join(fn.split('.')[:-1])
+    exportName  = ''.join(fn.split('/')[-1].split('.')[-2])
+    print(fn)
     print("{:<20}{:>20}".format('opening file',fn))
     print('*'*40)
     wordsize = 8  
