@@ -8,7 +8,7 @@ Created on Fri Oct 28 13:43:53 2016
 
 import numpy as np
 from collections import OrderedDict, defaultdict
-from utils.OrderedDefaultDict import OrderedDefaultDict
+#from utils.OrderedDefaultDict import OrderedDefaultDict
 import utils.ensightgoldformat as es
 
 def filInt(word):
@@ -78,7 +78,6 @@ class ExportEngine:
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]     
             action(recordContent)
-#            print(doc)
             return True
             
         else:
@@ -164,19 +163,9 @@ class ExportEngine:
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
         varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
         
-        newVarDict = {}
-        allElResults = []
+        varDict = {}
         for ensElType, elDict in varDict.items():
-            for elNum, elResult in elDict.items():
-                print("elNum {:}, {:}".format(elNum, elResult))
-                allElResults.append(elResult)
-
-            table = np.asarray(allElResults)
-            exportResults = table[:, resultIndices]
-            newVarDict[ensElType] = exportResults
-
-        # varDict = { ensElType : np.asarray([ np.concatenate(chunks) for chunks in elResults.values() ])[:,resultIndices] for ensElType, elResults in varDict.items()}
-        varDict = newVarDict
+            varDict[ensElType] = np.asarray([row[resultIndices] for row in  elDict.values() ])
 
         enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = varDict
         return enSightVar
@@ -214,19 +203,17 @@ class ExportEngine:
         
         if appendGaussPt:
             location += '@'+str(self.currentIpt)
-
+        
+        # TODO:
+            # maybe an implementation based on a 2D numpy array (instead of ordered dict and 1D numpy vectors)
+            # could improve the performance
+            # However, a mapping of element labels -> indices in the 2D numpy array would be necessary
         if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
-            newDict = OrderedDict([ ( int(elNo), None) for elNo in self.abqElSets[currentSetName]] )
-
+            newDict = OrderedDict(zip(self.abqElSets[currentSetName], [0.0] * len(self.abqElSets[currentSetName]) ))
             currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  newDict
-            print("CREATED {:}".format(newDict))
 
-        # insertLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum]
         currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum] = res
         
-        # print("per el output: {:} in {:} : {:}".format(currentElementNum, currentSetName, res[4]))
-        # print(insertLocation)
-        # insertLocation.append(res)
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
@@ -248,7 +235,6 @@ class ExportEngine:
         elType = filStrippedString(recordContent[1])
         elabqNodes = filInt(recordContent[2:])
         self.abqElements[elNum] = (elType, elabqNodes)
-        print("el {:}: {:}".format(elNum, elabqNodes))
     
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -256,9 +242,6 @@ class ExportEngine:
             setName = 'mainPart'
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
-
-        print(setName)
-        print(abqElements)
         self.abqElSets[setName] = abqElements
 
     def contAddElset(self, recordContent):
@@ -279,7 +262,6 @@ class ExportEngine:
         currentIncrement['tStep'] = tStep
         currentIncrement['nStep'] = nStep
         currentIncrement['timeInc'] = timeInc
-        # currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: OrderedDefaultDict(list))))
-        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda :{}) ))
+        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: dict() )) 
         currentIncrement['nodeResults'] = defaultdict(OrderedDict)
 

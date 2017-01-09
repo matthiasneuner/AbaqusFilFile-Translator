@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 break
             if currentIndex + recordLength > len(words):
                 batchIdx += int(math.floor(currentIndex/512))* 513 * 8  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
-                currentIndex =  ( (currentIndex%512) )                  # of course, the restart at the present index
+                currentIndex =  ( (currentIndex%512) )                  # of course, restart at the present index
                 break
             recordType = eE.filInt(words[currentIndex+1])[0]
             recordContent = words[currentIndex+2 : currentIndex+recordLength]
