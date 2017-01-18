@@ -244,8 +244,6 @@ class EnsightCase:
         
             
             cf.write("GEOMETRY\n")
-            print(directory)
-            print(casename)
             geometryFileName = os.path.join(directory, casename)       
             geometryTSn = self.geometryTrend.timeSet.number               
             geometryFSn = self.geometryTrend.timeSet.number               
@@ -305,9 +303,6 @@ class EnsightChunkWiseCase:
         self.directory = directory
         self.caseName = caseName
         self.caseFileNamePrefix = os.path.join(directory, caseName)  
-        print(directory)
-        print(caseName)
-        print(self.caseFileNamePrefix)
         self.writeTransientSingleFiles = writeTransientSingleFiles
         self.timeAndFileSets = {}
         self.geometryTrends = {}
@@ -324,10 +319,7 @@ class EnsightChunkWiseCase:
         fileName = ('{:}'*3).format(self.caseFileNamePrefix,
                                     ensightGeometry.name,
                                     ".geo",
-#                                    str(0).zfill(3)
                                     )
-        print(fileName) 
-        print(self.caseFileNamePrefix)
         if not ensightGeometry.name in self.geometryTrends:
             self.geometryTrends[ensightGeometry.name] = timeAndFileSetNumber
             with open(fileName ,mode='wb') as f:
