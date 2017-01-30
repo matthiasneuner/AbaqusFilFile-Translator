@@ -258,17 +258,15 @@ class ExportEngine:
         if appendGaussPt:
             location += '@'+str(self.currentIpt)
         
-        # TODO:
-            # maybe an implementation based on a 2D numpy array (instead of ordered dict and 1D numpy vectors)
-            # could improve the performance
-            # However, a mapping of element labels -> indices in the 2D numpy array would be necessary
         if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
-            newDict = OrderedDict(zip(self.abqElSets[currentSetName], [0.0] * len(self.abqElSets[currentSetName]) ))
+            newDict = OrderedDict(zip(self.abqElSets[currentSetName], [None] * len(self.abqElSets[currentSetName]) ))
             currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  newDict
-
-        currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum] = res
-
         
+        targetLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType]
+        if targetLocation[currentElementNum] is None:
+            targetLocation[currentElementNum] = res
+        else:
+            targetLocation[currentElementNum] = np.concatenate( (targetLocation[currentElementNum], res))
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]

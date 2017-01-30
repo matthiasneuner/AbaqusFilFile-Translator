@@ -28,7 +28,7 @@ if __name__ == "__main__":
     exportEngine = eE.ExportEngine(exportJobs, exportName )
     
     chunkSize = 513* wordsize
-    batchSize = chunkSize * 4096 * 32 # = ~ 538 MByte
+    batchSize = chunkSize * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
     fileStat = os.stat(fn)
     fileSize = fileStat.st_size
     
@@ -37,33 +37,34 @@ if __name__ == "__main__":
     print("file has a size of {:} bytes".format(fileSize))
     print("file will be processed in {:} steps".format(numberOfBatchSteps))
     
-    batchIdx = 0
-    currentIndex = 0
+    fileIdx = 0
+    wordIdx = 0
     fn = np.memmap(fn, dtype='b', mode='r+', )
-    while batchIdx < fileSize:
-        fileRemainder = fileSize - batchIdx
-        idxEnd = batchIdx + (batchSize if fileRemainder >= batchSize else fileRemainder)
-        fil = np.copy(fn[batchIdx :   idxEnd])
-        words = fil.reshape( -1 , chunkSize )
+    while fileIdx < fileSize:
+        fileRemainder = fileSize - fileIdx # remaining file size in BYTES
+        idxEnd = fileIdx + (batchSize if fileRemainder >= batchSize else fileRemainder) #get end index 
+        batchChunk = np.copy(fn[fileIdx :   idxEnd])  # get chunk of file
+        words = batchChunk.reshape( -1 , chunkSize )  # get words 
         words = words[:, 4:-4]
         words = words.reshape(-1, 8)
         
-        while currentIndex < len(words):
-            recordLength = eE.filInt(words[currentIndex])[0]  
+        while wordIdx < len(words):
+            recordLength = eE.filInt(words[wordIdx])[0]  
             if recordLength<=2:
                 print('found a record with 0 length content, possibly aborted Abaqus analysis')
                 break
-            if currentIndex + recordLength > len(words):
-                batchIdx += int(math.floor(currentIndex/512))* 513 * 8  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
-                currentIndex =  ( (currentIndex%512) )                  # of course, restart at the present index
+            if wordIdx + recordLength > len(words):
+                bytesProgressedInCurrentBatch = int(math.floor(wordIdx/512))* 513 * 8
+                fileIdx +=   bytesProgressedInCurrentBatch# move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
+                wordIdx =  ( (wordIdx%512) )                  # of course, restart at the present index
                 break
-            recordType = eE.filInt(words[currentIndex+1])[0]
-            recordContent = words[currentIndex+2 : currentIndex+recordLength]
+            recordType = eE.filInt(words[wordIdx+1])[0]
+            recordContent = words[wordIdx+2 : wordIdx+recordLength]
             success = exportEngine.computeRecord(recordLength, recordType, recordContent)
-            currentIndex += recordLength
-        if currentIndex == len(words):
-            currentIndex = 0
-            batchIdx += batchSize
+            wordIdx += recordLength
+        if wordIdx == len(words):
+            wordIdx = 0
+            fileIdx += batchSize
         del fil, words
             
     exportEngine.finalize()
