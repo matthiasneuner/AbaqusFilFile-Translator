@@ -54,7 +54,6 @@ class ExportEngine:
         self.currentIpt = 1
         self.nIncrements = 0
         
-        print(exportName)
         self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
         
         self.knownRecords = { 1 : ('Element header record', self.elementHeaderRecord),
@@ -161,10 +160,12 @@ class ExportEngine:
         
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
-        varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
+#        varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
         
         varDict = {}
+                                ### VARDICT EMPTY ### 
         for ensElType, elDict in varDict.items():
+                                                                
             varDict[ensElType] = np.asarray([row[resultIndices] for row in  elDict.values() ])
 
         enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = varDict
