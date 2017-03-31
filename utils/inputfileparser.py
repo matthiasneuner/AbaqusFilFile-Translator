@@ -19,6 +19,9 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                                             {'element' : (str, 'Abaqus (User) Element'),
                                              'shape' :  (str, 'Ensight Shape'),
                                              }),
+                    '*ensightCaseOptions' :  ('modify Ensight export options',
+                                            {'discardTime' : (str, ''),
+                                             }),
 
                     '*ensightPerNodeVariable':        ("define an Ensight per node variable for export",
 

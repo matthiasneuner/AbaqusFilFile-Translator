@@ -8,7 +8,6 @@ Created on Fri Oct 28 13:43:53 2016
 
 import numpy as np
 from collections import OrderedDict, defaultdict
-#from utils.OrderedDefaultDict import OrderedDefaultDict
 import utils.ensightgoldformat as es
 
 def filInt(word):
@@ -74,6 +73,7 @@ class ExportEngine:
             self.exportTimeHistory = False
         
         self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
+        self.ensightCaseDiscardTimeMarks = exportJobs.get('discardTime', False)
         
         self.knownRecords = { 1 : ('Element header record', self.elementHeaderRecord),
             5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV', appendGaussPt=False)),
@@ -164,7 +164,7 @@ class ExportEngine:
             self.currentIncrement = {}
         
     def finalize(self):
-        self.ensightCase.finalize()
+        self.ensightCase.finalize(discardTimeMarks = self.ensightCaseDiscardTimeMarks)
         
         for entry in self.csvPerElementSetJobs:
             jobName = entry['exportName']
@@ -182,7 +182,6 @@ class ExportEngine:
                 
     
     def createEnsightGeometryFromModel(self):
-        geometry = es.EnsightGeometry("geometry", "descGEO", "desc2GEO")
         allNodeLabelList = list(self.abqNodes.keys())
         allNodes = np.asarray( list(self.abqNodes.values()))
         if allNodes.shape[1] < 3:
@@ -190,20 +189,21 @@ class ExportEngine:
         allElements = np.asarray(  list(self.abqElements.keys()))
         self.abqElSets['mainPart'] = allElements
         
+        partList = []
         for ensPartNumber ,( elSetName,  elSet) in enumerate(self.abqElSets.items()):
             ensPartNumber+=1 # ensight is not able to begin with #0
             self.abqElSetToEnsightPartMappings[elSetName] = ensPartNumber
-            elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber)
-            elSetPart.nodes = allNodes#mainPart.nodes # np.asarray ( list(abqNodes.values()) )           # all abqNodes
             elSetNodeLabels = allNodeLabelList#ist( abqNodes.keys () )
-            for ensightElType in self.ensightElementTypeMappings.values():
-                elSetPart.elements[ensightElType] = []
+            setElements = { ensightElType : [] for ensightElType in self.ensightElementTypeMappings.values()}
             for elLabel in elSet:
                 element = self.abqElements[elLabel]
                 elType, elNodeLabels = element
                 elNodeIndices = [ elSetNodeLabels.index(i) for i in elNodeLabels]
-                elSetPart.elements[self.ensightElementTypeMappings[elType]].append( (elLabel, elNodeIndices)   )
-            geometry.partList.append(elSetPart)
+                setElements[self.ensightElementTypeMappings[elType]].append( (elLabel, elNodeIndices)   )
+            elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber, setElements, allNodes, elSetNodeLabels)
+            partList.append(elSetPart)
+        
+        geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
         
     def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
@@ -215,8 +215,6 @@ class ExportEngine:
         
     def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
-#        varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
-        
         incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
         
         incrementVariableResultsArrays = {}
@@ -273,7 +271,6 @@ class ExportEngine:
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
-#        print(node)
         vals = filDouble(rec[1:])
         self.currentIncrement['nodeResults']['U'][node] = vals
 
