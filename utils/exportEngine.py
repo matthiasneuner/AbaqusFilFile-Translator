@@ -30,10 +30,13 @@ class ExportEngine:
                         
     def __init__(self, exportJobs, exportName):
         
+        # TODO : CHECK 'INDICES' OF perNodeJobs and perElementJobs
+        
         self.perElementJobs = exportJobs.get('*ensightPerElementVariable', [])
         for entry in self.perElementJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
             entry['dimensions'] = entry.get('dimensions', len(entry['data']))
+            
         self.perNodeJobs = exportJobs.get('*ensightPerNodeVariable', [])
         for entry in self.perNodeJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
@@ -41,6 +44,16 @@ class ExportEngine:
             
         for entry in exportJobs.get('*defineElementType', []):
             self.ensightElementTypeMappings[entry['element']] = entry['shape']
+
+        self.csvPerElementSetJobs = exportJobs.get('*csvPerElementOutput', [])
+        for entry in self.csvPerElementSetJobs:
+            entry['exportName'] = entry.get('exportName', entry['source']) 
+            entry['csvData'] = []
+        
+        self.csvPerNodeJobs = exportJobs.get('*csvPerNodeOutput', [])
+        for entry in self.csvPerNodeJobs:
+            entry['exportName'] = entry.get('exportName', entry['source']) 
+            entry['csvData'] = []
             
         self.abqNodes = OrderedDict()
         self.abqElements = {}
@@ -53,6 +66,12 @@ class ExportEngine:
         self.currentSetName = 'mainPart'
         self.currentIpt = 1
         self.nIncrements = 0
+        self.timeHistory = []
+
+        if exportJobs['*exportTimeHistory'][0]:
+            self.exportTimeHistory = exportJobs['*exportTimeHistory'][0].get('exportName', 'timeHistory')
+        else:
+            self.exportTimeHistory = False
         
         self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
         
@@ -61,6 +80,7 @@ class ExportEngine:
             11 :('S output', lambda x : self.handlePerElementOutput(x, 'S')),
             21 :('E output', lambda x : self.handlePerElementOutput(x, 'E')),
             101: ('U output', self.handleUOutput),
+            104: ('RF output', self.handleRFOutput),
             201: ('NT output', self.handleNTOutput),
             1901 : ('node definition', self.addNode),
             1900: ('element definition', self.addElement),
@@ -120,11 +140,46 @@ class ExportEngine:
                     self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
                 del enSightVar
                 
+            for entry in self.csvPerElementSetJobs:
+                currentRow = []
+                jobElSetPartName = entry['set']
+                resultLocation = entry['source']
+                resultIndices = entry['data'][0]
+                nCount = entry.get('periodicalPattern', 1)
+                nShift = entry.get('periodicalShift', 0)
+                for elDict in self.currentIncrement['elementResults'][resultLocation][jobElSetPartName].values():
+                    for elResult in elDict.values():
+                        for i in range(nCount):
+                            currentRow.append( elResult[resultIndices + i*nShift].ravel() )
+                entry['csvData'].append(currentRow)
+                            
+            for entry in self.csvPerNodeJobs:
+                node = entry['node']
+                resultLocation = entry['source']
+                resultIndices = entry['data'][0]
+                currentRow = self.currentIncrement['nodeResults'][resultLocation][node][resultIndices]
+                entry['csvData'].append(currentRow)
+                
             del self.currentIncrement
             self.currentIncrement = {}
         
     def finalize(self):
         self.ensightCase.finalize()
+        
+        for entry in self.csvPerElementSetJobs:
+            jobName = entry['exportName']
+            table = np.asarray(entry['csvData'] )
+            np.savetxt('{:}.csv'.format(jobName), table, fmt=entry.get('fmt', '%.6e'), )
+                
+        for entry in self.csvPerNodeJobs:
+            jobName = entry['exportName']
+            table = np.asarray(entry['csvData']  )
+            np.savetxt('{:}.csv'.format(jobName), table, fmt=entry.get('fmt', '%.6e'), )
+                
+        if self.exportTimeHistory:
+            completeTimeHistory = np.asarray(self.timeHistory)
+            np.savetxt('{:}.csv'.format(self.exportTimeHistory), completeTimeHistory, fmt='%.6e', )
+                
     
     def createEnsightGeometryFromModel(self):
         geometry = es.EnsightGeometry("geometry", "descGEO", "desc2GEO")
@@ -162,13 +217,13 @@ class ExportEngine:
         enSightVar = es.EnsightPerElementVariable(jobName, len(resultIndices),)
 #        varDict = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
         
-        varDict = {}
-                                ### VARDICT EMPTY ### 
-        for ensElType, elDict in varDict.items():
-                                                                
-            varDict[ensElType] = np.asarray([row[resultIndices] for row in  elDict.values() ])
+        incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
+        
+        incrementVariableResultsArrays = {}
+        for ensElType, elDict in incrementVariableResults.items():
+            incrementVariableResultsArrays[ensElType] = np.asarray([row[resultIndices] for row in  elDict.values() ])
 
-        enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = varDict
+        enSightVar.partsDict[self.abqElSetToEnsightPartMappings[jobElSetPartName]] = incrementVariableResultsArrays 
         return enSightVar
         
     def outputDefinition(self, recordContent):
@@ -205,21 +260,26 @@ class ExportEngine:
         if appendGaussPt:
             location += '@'+str(self.currentIpt)
         
-        # TODO:
-            # maybe an implementation based on a 2D numpy array (instead of ordered dict and 1D numpy vectors)
-            # could improve the performance
-            # However, a mapping of element labels -> indices in the 2D numpy array would be necessary
         if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
-            newDict = OrderedDict(zip(self.abqElSets[currentSetName], [0.0] * len(self.abqElSets[currentSetName]) ))
+            newDict = OrderedDict(zip(self.abqElSets[currentSetName], [None] * len(self.abqElSets[currentSetName]) ))
             currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  newDict
-
-        currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType][currentElementNum] = res
         
+        targetLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType]
+        if targetLocation[currentElementNum] is None:
+            targetLocation[currentElementNum] = res
+        else:
+            targetLocation[currentElementNum] = np.concatenate( (targetLocation[currentElementNum], res))
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
+
         vals = filDouble(rec[1:])
         self.currentIncrement['nodeResults']['U'][node] = vals
+
+    def handleRFOutput(self, rec):
+        node = filInt(rec[0])[0]
+        vals = filDouble(rec[1:])
+        self.currentIncrement['nodeResults']['RF'][node] = vals
 
     def handleNTOutput(self, rec):
         node = filInt(rec[0])[0]
@@ -265,4 +325,5 @@ class ExportEngine:
         currentIncrement['timeInc'] = timeInc
         currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: dict() )) 
         currentIncrement['nodeResults'] = defaultdict(OrderedDict)
+        self.timeHistory.append(tTotal)
 

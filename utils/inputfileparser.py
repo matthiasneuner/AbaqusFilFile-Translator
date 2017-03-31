@@ -37,6 +37,28 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
                          'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
                          'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                                                          
+                    '*csvPerElementOutput':        ("define an Ensight per element variable for export",
+                        {'set':             (str, "Abaqus element set") ,
+                         'exportName':      (str, "export Name of the variable"),
+                         'source':          (str, 'Abaqus variable identifier'),
+                         'fmt':             (str, '(optional) formatter for csv output by np.savetxt'),
+#                         'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
+                         'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
+                         'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
+                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                                                    
+                    '*csvPerNodeOutput':        ("define an Ensight per element variable for export",
+                        {'node':             (int, "Abaqus node label") ,
+                         'exportName':      (str, "export Name of the variable"),
+                         'source':          (str, 'Abaqus variable identifier'),
+                         'fmt':             (str, '(optional) formatter for csv output by np.savetxt'),
+                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                                                 
+                  '*exportTimeHistory':        ("define an Ensight per element variable for export",
+                        {'exportName':      (str, "export Name of the variable"),
+#                         'data':            ("npInt", "indices of the Abaqus source Variable")
+                         }),
                                
                                
                     '*include': ("(optional) load extra .inp file (fragment), use relative path to current .inp",

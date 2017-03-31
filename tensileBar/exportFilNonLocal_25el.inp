@@ -13,10 +13,10 @@
 5
 *ensightPerElementVariable, set=ALL, exportName=STRESS, source=SDV, periodicalPattern=4, periodicalShift=18
 6,7,8,9,10,11
-*csvPerElementOutput, set=ALL, exportName=STRESS, source=SDV, periodicalPattern=1, periodicalShift=18, fmt=%.6e
+*csvPerElementOutput, set=ALL, exportName=STRESS_25el, source=SDV, periodicalPattern=1, periodicalShift=18, fmt=%.6e
 7
-*csvPerNodeOutput, node=6, exportName=nodeDisplacements, source=U, fmt=%.6e
+*csvPerNodeOutput, node=26, exportName=nodeDisplacements_25el, source=U, fmt=%.6e
 0,1
-*csvPerNodeOutput, node=6, exportName=reactionForces, source=RF, fmt=%.6e
+*csvPerNodeOutput, node=26, exportName=reactionForces_25el, source=RF, fmt=%.6e
 0,1
-*exportTimeHistory, exportName=time
+*exportTimeHistory, exportName=time_25el
