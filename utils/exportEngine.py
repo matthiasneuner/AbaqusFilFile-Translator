@@ -12,7 +12,7 @@ from collections import OrderedDict, defaultdict
 import utils.ensightgoldformat as es
 
 def filInt(word):
-    # return word[0:4].view( '<4i')
+#     return word[0:4].view( '<4i')
     return word.view('<i8').ravel()
 def filString(word):
     return word.view('a8')
@@ -68,7 +68,7 @@ class ExportEngine:
         self.nIncrements = 0
         self.timeHistory = []
 
-        if exportJobs['*exportTimeHistory'][0]:
+        if exportJobs['*exportTimeHistory']:
             self.exportTimeHistory = exportJobs['*exportTimeHistory'][0].get('exportName', 'timeHistory')
         else:
             self.exportTimeHistory = False
@@ -246,7 +246,8 @@ class ExportEngine:
         self.currentSetName = setName
         
     def elementHeaderRecord(self, rec):
-        elNum = filInt(rec[0])[0]
+#        elNum = filInt(rec[0])[0]
+        elNum = filFlag(rec[0]) # march 2017: filInt does not worki in tensilebar?
         self.currentElementNum = elNum #abqElements[elNum]
         self.currentIpt = filFlag(rec[1])
            
@@ -272,7 +273,7 @@ class ExportEngine:
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
-
+#        print(node)
         vals = filDouble(rec[1:])
         self.currentIncrement['nodeResults']['U'][node] = vals
 

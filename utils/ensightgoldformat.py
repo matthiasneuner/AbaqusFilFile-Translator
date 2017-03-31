@@ -231,7 +231,7 @@ class EnsightCase:
                 cf.write("filename increment: " +str(timeSet.fileNameNumberIncrement) +"\n")
                 cf.write("time values: ")
                 for timeVal in timeSet.timeValues:
-                    cf.write(str(timeVal) +"\n")
+                    cf.write('{:1.8e}'.format(timeVal) +"\n")
                 
             if writeTransientSingleFiles:
                 fs = "1"
@@ -362,8 +362,12 @@ class EnsightChunkWiseCase:
                 cf.write("filename start number: " + str(timeSet.fileNameStartNumber) +"\n")
                 cf.write("filename increment: " +str(timeSet.fileNameNumberIncrement) +"\n")
                 cf.write("time values: ")
-                for timeVal in timeSet.timeValues:
-                    cf.write(str(timeVal) +"\n")
+                for i, timeVal in enumerate(timeSet.timeValues):
+                    if False:
+                        cf.write('{:1.8e}'.format(timeVal) +"\n")
+                    else:
+                        cf.write('{:}'.format(i) +"\n")
+                
                 
             if self.writeTransientSingleFiles:
                 cf.write("FILE\n")
