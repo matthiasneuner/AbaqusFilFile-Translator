@@ -41,30 +41,38 @@ if __name__ == "__main__":
     wordIdx = 0
     fn = np.memmap(fn, dtype='b', mode='r+', )
     while fileIdx < fileSize:
+        
         fileRemainder = fileSize - fileIdx # remaining file size in BYTES
         idxEnd = fileIdx + (batchSize if fileRemainder >= batchSize else fileRemainder) #get end index 
         batchChunk = np.copy(fn[fileIdx :   idxEnd])  # get chunk of file
         words = batchChunk.reshape( -1 , chunkSize )  # get words 
         words = words[:, 4:-4]
         words = words.reshape(-1, 8)
-        
         while wordIdx < len(words):
             recordLength = eE.filInt(words[wordIdx])[0]  
             if recordLength<=2:
-                print('found a record with 0 length content, possibly aborted Abaqus analysis')
+                print('found a record with 0 length content, possible an aborted Abaqus analysis')
                 break
+            
             if wordIdx + recordLength > len(words):
                 bytesProgressedInCurrentBatch = int(math.floor(wordIdx/512))* 513 * 8
+                if bytesProgressedInCurrentBatch == 0: # indicator for an aborted analysis
+                    print('terminated file, possible an aborted Abaqus analysis')
+                    fileIdx = fileSize
+                    break
                 fileIdx +=   bytesProgressedInCurrentBatch# move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
                 wordIdx =  ( (wordIdx%512) )                  # of course, restart at the present index
                 break
+            
             recordType = eE.filInt(words[wordIdx+1])[0]
             recordContent = words[wordIdx+2 : wordIdx+recordLength]
             success = exportEngine.computeRecord(recordLength, recordType, recordContent)
             wordIdx += recordLength
+            
         if wordIdx == len(words):
             wordIdx = 0
             fileIdx += batchSize
+            
         del words
             
     exportEngine.finalize()
