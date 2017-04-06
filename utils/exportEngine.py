@@ -201,10 +201,16 @@ class ExportEngine:
                 
     
     def createEnsightGeometryFromModel(self):
-        allNodeLabelList = list(self.abqNodes.keys())
-        allNodes = np.asarray( list(self.abqNodes.values()))
-        if allNodes.shape[1] < 3:
-            allNodes = np.hstack( (allNodes, np.zeros((allNodes.shape[0],3 -allNodes.shape[1])) ))       
+#        allNodeLabelList = list(self.abqNodes.keys())
+        allNodeCoords = np.asarray( list(self.abqNodes.values()) )
+        #label indices:
+        labelToIndices = {}
+        for n, label in enumerate(self.abqNodes.keys()):
+            labelToIndices[label] = n
+        
+#        allNodeLabelsToCoordArrayMapping = { label : n for label in  self.abqNodes.keys()} 
+        if allNodeCoords.shape[1] < 3:
+            allNodeCoords = np.hstack( (allNodeCoords, np.zeros((allNodeCoords.shape[0],3 -allNodeCoords.shape[1])) ))       
         allElements = np.asarray(  list(self.abqElements.keys()))
         self.abqElSets['mainPart'] = allElements
         
@@ -212,16 +218,40 @@ class ExportEngine:
         for ensPartNumber ,( elSetName,  elSet) in enumerate(self.abqElSets.items()):
             ensPartNumber+=1 # ensight is not able to begin with #0
             self.abqElSetToEnsightPartMappings[elSetName] = ensPartNumber
-            elSetNodeLabels = allNodeLabelList#ist( abqNodes.keys () )
+#            elSetNodeLabels = allNodeLabelList#ist( abqNodes.keys () )
             setElements = { ensightElType : [] for ensightElType in self.ensightElementTypeMappings.values()}
+
+            nodeCounter = 0
+            partNodes = OrderedDict() # label : index parts
+#            elementDict = defaultdict(OrderedDict)
+
             for elLabel in elSet:
+                
+                elNodeIndices = []
+                elementType, elementNodeLabels = self.abqElements[elLabel]
+                for node in elementNodeLabels:
+                    # if the node is already in the dict, get its index, 
+                    # else insert it, and get the current idx = counter. increase the counter
+                    idx = partNodes.setdefault(node, nodeCounter)
+                    elNodeIndices.append(idx)
+                    if idx == nodeCounter:
+                        # the node was just inserted, so increase the counter of inserted nodes
+                        nodeCounter+=1
+#                elementDict[element.ensightType][element] = elNodeIndices 
+                   
+#            for elLabel in elSet:
                 element = self.abqElements[elLabel]
                 elType, elNodeLabels = element
-                elNodeIndices = [ elSetNodeLabels.index(i) for i in elNodeLabels]
+#                elNodeIndices = [ elSetNodeLabels.index(i) for i in elNodeLabels]
                 setElements[self.ensightElementTypeMappings[elType]].append( (elLabel, elNodeIndices)   )
-            elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber, setElements, allNodes, elSetNodeLabels)
+            
+#            print(allNodeCoords.shape)
+            partNodeCoordinates = allNodeCoords[ [ labelToIndices[label] for label in partNodes.keys() ] ,:]
+#            print("cc")
+            partNodeLabels = list (partNodes.keys() )
+            elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber, setElements, partNodeCoordinates, partNodeLabels)
             partList.append(elSetPart)
-        
+            
         geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
         
