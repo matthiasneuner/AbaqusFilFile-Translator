@@ -52,7 +52,8 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'data':            ("npInt", "indices of the Abaqus source Variable")}),
                                                     
                     '*csvPerNodeOutput':        ("export node results to a csv file",
-                        {'node':             (int, "Abaqus node label") ,
+                        {'node':             (int, "(alternative) specify an Abaqus node label") ,
+                         'nSet':            (str, '(alternative) specify an Abaqus node set'),
                          'exportName':      (str, "export name of the variable"),
                          'source':          (str, 'Abaqus variable identifier'),
                          'fmt':             (str, '(optional) formatter for .csv output by np.savetxt'),

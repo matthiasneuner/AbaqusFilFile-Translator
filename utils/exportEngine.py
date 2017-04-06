@@ -57,8 +57,8 @@ class ExportEngine:
         for entry in self.csvPerNodeJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
             entry['csvData'] = []
-            if entry['math']:
-                entry['math'] = mathFunctions.get(entry['math'], False)
+#            if entry['math']:
+#                entry['math'] = mathFunctions.get(entry['math'], False)
             
         self.abqNodes = OrderedDict()
         self.abqElements = {}
@@ -70,7 +70,6 @@ class ExportEngine:
         self.currentIncrement = {}
         self.currentAbqElSet = None
         self.currentSetName = 'mainPart'
-        self.currentNodeSetName = 'defaultNodeSet'
         self.currentIpt = 1
         self.nIncrements = 0
         self.timeHistory = []
@@ -83,10 +82,11 @@ class ExportEngine:
         self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
         self.ensightCaseDiscardTimeMarks = exportJobs.get('discardTime', False)
         
-        self.knownRecords = { 1 : ('Element header record', self.elementHeaderRecord),
+        self.knownRecords = { 
+            1: ('Element header record', self.elementHeaderRecord),
             5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV', appendGaussPt=False)),
-            11 :('S output', lambda x : self.handlePerElementOutput(x, 'S')),
-            21 :('E output', lambda x : self.handlePerElementOutput(x, 'E')),
+            11: ('S output', lambda x : self.handlePerElementOutput(x, 'S')),
+            21: ('E output', lambda x : self.handlePerElementOutput(x, 'E')),
             101: ('U output', self.handleUOutput),
             104: ('RF output', self.handleRFOutput),
             201: ('NT output', self.handleNTOutput),
@@ -96,21 +96,20 @@ class ExportEngine:
             1911: ('output request definition', self.outputDefinition),
             1921: ('heading', lambda x : None),
             1922: ('heading', lambda x : None),
-#            1931: ('node set definition', self.addNodeset),
-#            1932: ('node set definition cont.', self.contAddNodeset),
+            1931: ('node set definition', self.addNodeset),
+            1932: ('node set definition cont.', self.contAddNodeset),
             1933: ('element set definition', self.addElset),
             1934: ('element set definition cont.', self.contAddElset),
             1940: ('label cross reference', lambda x : None),
             2000: ('start increment', self.addIncrement),
-            2001: ('end increment', self.finishAndParseIncrement),
-}
+            2001: ('end increment', self.finishAndParseIncrement),}
     
     def computeRecord(self, recordLength, recordType, recordContent):
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]     
             action(recordContent)
             return True
-            
+        
         else:
             print("{:<20}{:>6}{:>10}{:>4}".format('unknown record:',recordType, ' of length', recordLength))
             return False
@@ -166,12 +165,18 @@ class ExportEngine:
                 entry['csvData'].append(currentRow)
                             
             for entry in self.csvPerNodeJobs:
-                node = entry['node']
+                if 'nodes' not in entry:
+                    # first run (=first increment)
+                    if 'node' in entry:
+                        entry['nodes'] = [entry['node']]
+                    elif 'nSet' in entry:
+                        entry['nodes'] = self.abqNodeSets[entry['nSet']]
+                        
                 resultLocation = entry['source']
                 resultIndices = entry['data'][0]
-                currentRow = self.currentIncrement['nodeResults'][resultLocation][node][resultIndices]
-                if entry['math']:
-                    currentRow = entry['math'](currentRow)
+                currentRow = [self.currentIncrement['nodeResults'][resultLocation][node][resultIndices] for node in entry['nodes']]
+#                if entry['math']:
+#                    currentRow = entry['math'](currentRow)
                 entry['csvData'].append(currentRow)
                 
             del self.currentIncrement
@@ -321,17 +326,17 @@ class ExportEngine:
         abqElements = filInt(recordContent)
         self.abqElSets[self.currentSetName] = np.concatenate( [self.abqElSets[self.currentSetName], abqElements])
     
-#    def addNodeset(self, recordContent):
-#        setName = filStrippedString(recordContent[0])
-#        if not setName:
-#            setName = 'defaultNodeSet'
-#        self.currentNodeSetName = setName
-#        abqNodes = filInt(recordContent[1:])
-#        self.abqNodeSets[setName] = abqNodes
-#    
-#    def contAddNodeset(self, recordContent):
-#        abqNodes = filInt(recordContent)
-#        self.abqNodeSets[self.currentNodeSetName] = np.concatenate( [self.abqNodeSets[self.currentNodeSetName], abqNodes])
+    def addNodeset(self, recordContent):
+        setName = filStrippedString(recordContent[0])
+        if not setName:
+            setName = 'defaultNodeSet'
+        self.currentSetName = setName
+        abqNodes = filInt(recordContent[1:])
+        self.abqNodeSets[setName] = abqNodes
+    
+    def contAddNodeset(self, recordContent):
+        abqNodes = filInt(recordContent)
+        self.abqNodeSets[self.currentSetName] = np.concatenate( [self.abqNodeSets[self.currentSetName], abqNodes])
     
     def addIncrement(self, recordContent):
         r = recordContent
