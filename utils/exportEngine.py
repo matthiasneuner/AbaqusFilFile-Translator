@@ -10,6 +10,8 @@ import numpy as np
 from collections import OrderedDict, defaultdict
 import utils.ensightgoldformat as es
 
+from utils.OrderedDefaultDict import OrderedDefaultDict
+
 mathFunctions = {'sum' : np.sum,
                  'mean': np.mean
                  }
@@ -25,6 +27,76 @@ def filDouble(word):
     return word.view('<d').ravel()
 def filFlag(word):
     return word[0:4].view('<i')[0]
+
+class Node:
+    def __init__(self, label=None, coords=None):
+        self.label = label
+        self.coords = coords
+
+class Element:
+    def __init__(self, label, shape, nodes):
+        self.label = label
+        self.shape = shape
+        self.nodes = nodes
+
+class ElSet:
+    def __init__(self, name, elements):
+        self.name  = name
+        
+        self.elements = OrderedDefaultDict(list)
+        self.appendElements(elements)
+            
+#        self._allNodes = None
+#        self._nodeCoords3D = None
+        
+        self._reducedNodes = None
+        self._reducedElementNodeIndices = None
+        self._reducedNodeCoords3D = None
+        
+    def appendElements(self, elements):
+        for element in elements:
+            self.elements[element.shape].append(element)
+            
+#    def getAllNodes(self, ):
+#        if self._allNodes is None:
+#            self._allNodes = [ node for elementsByShape in self.elements 
+#                                                            for element in elementsByShape 
+#                                                                for node in element.nodes ]
+#        return self._allNodes
+    
+    def getReducedNodes(self, ):
+        if self._reducedNodes is None:
+            self._reducedNodes = OrderedDict([ (node.label, node) for elementsByShape in self.elements 
+                                                            for element in elementsByShape 
+                                                                for node in element.nodes ])
+        return self._reducedNodes
+    
+    def getReducedNodeCoords3D(self,):
+        if not self._reducedNodeCoords3D:
+            self._reducedNodeCoords3D = np.asarray([node.coords for node in self.getReducedNodes()])
+            if self._reducedNodeCoords3D.shape[1] < 3:
+                self._reducedNodeCoords3D = np.hstack( (self._reducedNodeCoords3D, np.zeros((self._reducedNodeCoords3D.shape[0],3 -self._reducedNodeCoords3D.shape[1])) ))   
+        return self._reducedNodeCoords3D
+    
+    def getReducedElementNodeIndices(self,):
+        if not self._reducedElementNodeIndices:
+            self._reducedElementNodeIndices = OrderedDict( [ (node.label, i) for (i, node) in enumerate(self.getReducedNodes()) ] )
+        
+        
+#    def getAllNodeCoordinates3D(self, ):
+#        if not self._nodeCoords3D:
+#            self._nodeCoords3D = np.asarray([node.coords for node in self.getAllNodes()])
+#            if self._nodeCoords3D.shape[1] < 3:
+#                self._nodeCoords3D = np.hstack( (self._nodeCoords3D, np.zeros((self._nodeCoords3D.shape[0],3 -self._nodeCoords3D.shape[1])) ))   
+#        return self._nodeCoords3D
+    
+class NSet:
+    def __init__(self, name, nodes):
+        self.name = name
+        self.nodes = nodes
+        
+    def appendNodes(self, nodes):
+        pass
 
 class ExportEngine:
     ensightElementTypeMappings = {
@@ -65,6 +137,12 @@ class ExportEngine:
         self.abqNodeSets = {}
         self.abqElSets = {}
         self.abqElSetToEnsightPartMappings = {}
+        self.abqElSetNodes = {}
+        
+        self._allNodes = OrderedDefaultDict(Node)
+        self._allElements = OrderedDict()
+        self._nSets = {}
+        self._elSets = {}
         
         self.currentState = 'model setup'
         self.currentIncrement = {}
@@ -130,7 +208,7 @@ class ExportEngine:
             for entry in self.perNodeJobs:
                 jobElSetPartName = entry['set']
                 resultLocation = entry['source']
-                resultIndices = entry['data']
+                resultIndices = entry['data'][0]
                 resultTypeLength = entry['dimensions'] 
                 jobName = entry['exportName']
                 enSightVar = self.createEnsightPerNodeVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength)
@@ -200,20 +278,88 @@ class ExportEngine:
             np.savetxt('{:}.csv'.format(self.exportTimeHistory), completeTimeHistory, fmt='%.6e', )
                 
     
+#    def createEnsightGeometryFromModel(self):
+##        allNodeLabelList = list(self.abqNodes.keys())
+#        allNodeCoords = np.asarray( list(self.abqNodes.values()) )
+#        labelToIndices = { label : n for n, label in enumerate(self.abqNodes.keys())}
+#        
+##        allNodeLabelsToCoordArrayMapping = { label : n for label in  self.abqNodes.keys()} 
+#        if allNodeCoords.shape[1] < 3:
+#            allNodeCoords = np.hstack( (allNodeCoords, np.zeros((allNodeCoords.shape[0],3 -allNodeCoords.shape[1])) ))       
+#        allElements = np.asarray(  list(self.abqElements.keys()))
+#        self.abqElSets['mainPart'] = allElements
+#        
+#        partList = []
+#        for ensPartNumber ,( elSetName,  elSet) in enumerate(self.abqElSets.items()):
+#            ensPartNumber+=1 # ensight is not able to begin with #0
+#            self.abqElSetToEnsightPartMappings[elSetName] = ensPartNumber
+##            elSetNodeLabels = allNodeLabelList#ist( abqNodes.keys () )
+#            setElements = { ensightElType : [] for ensightElType in self.ensightElementTypeMappings.values()}
+#
+#            nodeCounter = 0
+#            partNodes = OrderedDict() # label : index parts
+##            elementDict = defaultdict(OrderedDict)
+#
+#            for elLabel in elSet:
+#                
+#                elNodeIndices = []
+#                elementType, elementNodeLabels = self.abqElements[elLabel]
+#                for node in elementNodeLabels:
+#                    # if the node is already in the dict, get its index, 
+#                    # else insert it, and get the current idx = counter. increase the counter
+#                    idx = partNodes.setdefault(node, nodeCounter)
+#                    elNodeIndices.append(idx)
+#                    if idx == nodeCounter:
+#                        # the node was just inserted, so increase the counter of inserted nodes
+#                        nodeCounter+=1
+##                elementDict[element.ensightType][element] = elNodeIndices 
+#                   
+##            for elLabel in elSet:
+#                element = self.abqElements[elLabel]
+#                elType, elNodeLabels = element
+##                elNodeIndices = [ elSetNodeLabels.index(i) for i in elNodeLabels]
+#                setElements[self.ensightElementTypeMappings[elType]].append( (elLabel, elNodeIndices)   )
+#            
+##            print(allNodeCoords.shape)
+#            partNodeCoordinates = allNodeCoords[ [ labelToIndices[label] for label in partNodes.keys() ] ,:]
+##            print("cc")
+#            partNodeLabels = list (partNodes.keys() )
+#            self.abqElSetNodes[elSetName] = partNodeLabels
+#            elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber, setElements, partNodeCoordinates, partNodeLabels)
+#            partList.append(elSetPart)
+#            
+#        geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
+#        return geometry
+    
     def createEnsightGeometryFromModel(self):
 #        allNodeLabelList = list(self.abqNodes.keys())
-        allNodeCoords = np.asarray( list(self.abqNodes.values()) )
-        #label indices:
-        labelToIndices = {}
-        for n, label in enumerate(self.abqNodes.keys()):
-            labelToIndices[label] = n
+#        allNodeCoords = np.asarray( list(self.abqNodes.values()) )
+#        labelToIndices = { label : n for n, label in enumerate(self.abqNodes.keys())}
+#        
+##        allNodeLabelsToCoordArrayMapping = { label : n for label in  self.abqNodes.keys()} 
+#        if allNodeCoords.shape[1] < 3:
+#            allNodeCoords = np.hstack( (allNodeCoords, np.zeros((allNodeCoords.shape[0],3 -allNodeCoords.shape[1])) ))       
+#        allElements = np.asarray(  list(self.abqElements.keys()))
+#        self.abqElSets['mainPart'] = allElements
         
-#        allNodeLabelsToCoordArrayMapping = { label : n for label in  self.abqNodes.keys()} 
-        if allNodeCoords.shape[1] < 3:
-            allNodeCoords = np.hstack( (allNodeCoords, np.zeros((allNodeCoords.shape[0],3 -allNodeCoords.shape[1])) ))       
-        allElements = np.asarray(  list(self.abqElements.keys()))
-        self.abqElSets['mainPart'] = allElements
+        mainSet = ElSet('mainPart', self._allElements)
+        self._elSets['mainPart'] = mainSet
         
+        partList = []
+        partNumber = 1
+        
+        for elSet in self._allElements.values():
+
+            
+#            elSetPart = es.EnsightUnstructuredPart(elSet.name, 
+#                                                   partNumber, 
+#                                                   elSet.elements, 
+#                                                   elSet.getReducedElementNodeIndices(), 
+#                                                   elSet.getNodeLabels())
+            partList.append(elSetPart)
+            partNumber +=1
+    
+
         partList = []
         for ensPartNumber ,( elSetName,  elSet) in enumerate(self.abqElSets.items()):
             ensPartNumber+=1 # ensight is not able to begin with #0
@@ -249,6 +395,7 @@ class ExportEngine:
             partNodeCoordinates = allNodeCoords[ [ labelToIndices[label] for label in partNodes.keys() ] ,:]
 #            print("cc")
             partNodeLabels = list (partNodes.keys() )
+            self.abqElSetNodes[elSetName] = partNodeLabels
             elSetPart = es.EnsightUnstructuredPart(elSetName, ensPartNumber, setElements, partNodeCoordinates, partNodeLabels)
             partList.append(elSetPart)
             
@@ -256,9 +403,15 @@ class ExportEngine:
         return geometry
         
     def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
-        varDict = self.currentIncrement['nodeResults'][resultLocation]
-        nodalVarTable = np.asarray([nodeVals[resultIndices] for nodeNum, nodeVals in varDict.items() ])    
+#        varDict = self.currentIncrement['nodeResults'][resultLocation]
+#        print(resultIndices)
+#        print(varDict.items())
+    
+        nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node]for node in self.abqElSetNodes[jobElSetPartName] ] )
+#        nodalVarTable = np.asarray([nodeVals[resultIndices] for nodeNum, nodeVals in varDict.items() ])    
+#        print(nodalVarTable)
         partsDict = {self.abqElSetToEnsightPartMappings[jobElSetPartName] : ('coordinates', nodalVarTable)}
+#        print(nodalVarTable.shape)
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
         return enSightVar
         
@@ -334,15 +487,22 @@ class ExportEngine:
         self.currentIncrement['nodeResults']['NT'][node] = vals
     
     def addNode(self, recordContent):
-        node = filInt(recordContent[0])[0]   
+        label = filInt(recordContent[0])[0]   
         coords = filDouble(recordContent[1:])
-        self.abqNodes[node] = coords
+        self.abqNodes[label] = coords
+        
+#        self._allNodes[node] = Node(node, coords)
+        node = self._allNodes[label]
+        node.label = label
+        node.coords = coords
     
     def addElement(self, recordContent):
         elNum = filInt(recordContent[0])[0]
         elType = filStrippedString(recordContent[1])
         elabqNodes = filInt(recordContent[2:])
         self.abqElements[elNum] = (elType, elabqNodes)
+        
+        self._allElements[elNum]= Element(elNum, self.ensightElementTypeMappings[elType], [ self._allNodes[n] for n in elabqNodes ])
     
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -351,10 +511,14 @@ class ExportEngine:
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
         self.abqElSets[setName] = abqElements
+        
+        self._elSets[setName] = ElSet(setName, [self._allElements[e] for e in abqElements])
 
     def contAddElset(self, recordContent):
         abqElements = filInt(recordContent)
         self.abqElSets[self.currentSetName] = np.concatenate( [self.abqElSets[self.currentSetName], abqElements])
+        
+        self._elSets[self.currentSetName].appendElements([self._allElements[e] for e in abqElements] )
     
     def addNodeset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -363,10 +527,14 @@ class ExportEngine:
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
         self.abqNodeSets[setName] = abqNodes
+        
+        self._nSets[setName] = NSet(setName, [self._allNodes[n] for n in abqNodes ])
     
     def contAddNodeset(self, recordContent):
         abqNodes = filInt(recordContent)
         self.abqNodeSets[self.currentSetName] = np.concatenate( [self.abqNodeSets[self.currentSetName], abqNodes])
+        
+        self._nSets[self.currentSetName].appendNodes( [self._allNodes[n] for n in abqNodes ] )
     
     def addIncrement(self, recordContent):
         r = recordContent
