@@ -115,7 +115,7 @@ class ExportEngine:
         for entry in self.csvPerNodeJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
             entry['csvData'] = []
-            if entry['math']:
+            if entry.get('math', False):
                 entry['math'] = mathFunctions.get(entry['math'], False)
             
         self.allNodes = OrderedDefaultDict(Node)
@@ -232,7 +232,7 @@ class ExportEngine:
                 resultLocation = entry['source']
                 resultIndices = entry['data'][0]
                 currentRow = [self.currentIncrement['nodeResults'][resultLocation][node.label][resultIndices] for node in entry['nodes']]
-                if entry['math']:
+                if entry.get('math', False):
                     currentRow = entry['math'](currentRow)
                 entry['csvData'].append(currentRow)
             
