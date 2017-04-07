@@ -71,6 +71,7 @@ class EnsightUnstructuredPart:
                     writeCInt(f, elemID)
             for elemID, nodes in elemList:             
                 writeCInt(f, np.asarray(nodes, np.int32)[:]+1 )
+
                     
 class EnsightTimeSet:
     """ defines a set which may be used by EnsightGeometry, EnsightStructuredPart, EnsightUnstructuredPart and is written into the case file"""
@@ -221,10 +222,11 @@ class EnsightChunkWiseCase:
             ensightVariable.writeToFile(f)
             writeC80(f, 'END TIME STEP')
                     
-    def finalize(self, discardTimeMarks=False):
+    def finalize(self, discardTimeMarks=False, closeFileHandles=True):
         
-        for f in self.fileHandles.values():
-            f.close()
+        if closeFileHandles:
+            for f in self.fileHandles.values():
+                f.close()
         
         caseFName = self.caseFileNamePrefix+'.case'
         with open(caseFName ,mode='w') as cf:
@@ -242,7 +244,7 @@ class EnsightChunkWiseCase:
                     if discardTimeMarks:
                         cf.write('{:}'.format(i) +"\n")
                     else:
-                        cf.write('{:1.8e}'.format(timeVal) +"\n")
+                        cf.write('{:1.6f}'.format(timeVal) +"\n")
                 
             if self.writeTransientSingleFiles:
                 cf.write("FILE\n")

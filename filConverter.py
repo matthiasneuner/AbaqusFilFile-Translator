@@ -24,7 +24,7 @@ if __name__ == "__main__":
     
     exportName  = ''.join(fn.split('/')[-1].split('.')[-2])
     print("{:<20}{:>20}".format('opening file',fn))
-    print('*'*40)
+    print('*'*48)
     wordsize = 8  
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
@@ -93,8 +93,11 @@ if __name__ == "__main__":
                     
                 del words
             else:
-                print("waiting for new result .fil data or CTRL-C to finish...")
-                time.sleep(10)
+                if os.path.exists( fn.split('.')[0]+'.lck' ):
+                    print("found .lck file, waiting for new result .fil data or CTRL-C to finish...")
+                    time.sleep(10)
+                else:
+                    break
             
         except KeyboardInterrupt:
             print("Interrupted by user")
@@ -102,14 +105,15 @@ if __name__ == "__main__":
             
     exportEngine.finalize()
         
-    print('*'*40)
+    print('*'*48)
     print('Summary of .fil file:')
-    print('{:<20}{:>20}'.format('nodes:',len(exportEngine.abqNodes)))
-    print('{:<20}{:>20}'.format('elements:',len(exportEngine.abqElements)))
-    print('{:<20}{:>20}'.format('element sets:',len(exportEngine.abqElSets)))
-    for setName, elList in exportEngine.abqElSets.items():
-        print('{:.<4}{:<16}{:>11} elements'.format('.',setName, len(elList)))
-    print('{:<20}{:>20}'.format('increments:',exportEngine.nIncrements))
+    print('{:<20}{:>28}'.format('nodes:',len(exportEngine.allNodes)))
+    print('{:<20}{:>28}'.format('elements:',len(exportEngine.allElements)))
+    print('{:<20}{:>28}'.format('element sets:',len(exportEngine.elSets)))
+    for setName, elSet in exportEngine.elSets.items():
+        for elType, elements in elSet.elements.items():
+            print('{:.<4}{:<16}{:8}{:>11} elements'.format('.',setName,elType, len(elements)))
+    print('{:<20}{:>28}'.format('increments:',exportEngine.nIncrements))
 
     
 

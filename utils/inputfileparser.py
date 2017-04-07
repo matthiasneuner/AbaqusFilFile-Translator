@@ -20,7 +20,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                                              'shape' :  (str, 'Ensight Shape'),
                                              }),
                     '*ensightCaseOptions' :  ('modify Ensight export options',
-                                            {'discardTime' : (str, ''),
+                                            {'discardTime' : (str, 'discard Time values and replace by enumeration of time steps'),
                                              }),
 
                     '*ensightPerNodeVariable':        ("define an Ensight per node variable for export",
@@ -56,6 +56,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'nSet':            (str, '(alternative) specify an Abaqus node set'),
                          'exportName':      (str, "export name of the variable"),
                          'source':          (str, 'Abaqus variable identifier'),
+                         'math':            (str, 'define math function to be applied on node results'),
                          'fmt':             (str, '(optional) formatter for .csv output by np.savetxt'),
                          'data':            ("npInt", "indices of the Abaqus source Variable")}),
                                                  
