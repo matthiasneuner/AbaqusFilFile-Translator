@@ -7,6 +7,7 @@ import utils.exportEngine as eE
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
 
+
 if __name__ == "__main__":
     
     if len(sys.argv) < 3 or sys.argv[1] == '--help':
@@ -23,6 +24,7 @@ if __name__ == "__main__":
     exportJobs = parseInputFile(jobFile)
     
     exportName  = ''.join(fn.split('/')[-1].split('.')[-2])
+    lockFile =  fn.split('.')[0]+'.lck' 
     print("{:<20}{:>20}".format('opening file',fn))
     print('*'*48)
     wordsize = 8  
@@ -42,9 +44,8 @@ if __name__ == "__main__":
     fileIdx = 0
     wordIdx = 0
 
-    
-#    while fileIdx < fileSize:
-    while True:
+    parseFile = True
+    while parseFile:
         try:
             fileStat = os.stat(fn)
             fileSize = fileStat.st_size
@@ -65,17 +66,41 @@ if __name__ == "__main__":
                     recordLength = eE.filInt(words[wordIdx])[0]  
                     if recordLength<=2:
                         print('found a record with 0 length content, possible an aborted Abaqus analysis')
-                        break
+                        if os.path.exists(lockFile):
+                            print("found .lck file, waiting for new result .fil data")
+                            time.sleep(5)
+                            fnMap = np.memmap(fn, dtype='b', mode='r', )
+                            batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
+                            words = batchChunk.reshape( -1 , chunkSize )  # get words 
+                            words = words[:, 4:-4]
+                            words = words.reshape(-1, 8)
+                            continue
+                        else:
+                            parseFile = False
+                            break
                     
                     # the next record exceeds our batchChunk, so we do some trick:
                         # - set the wordIdx to the end of the so far progressed frame
                         # - move the frame to the wordIDx
                     if wordIdx + recordLength > len(words):
                         bytesProgressedInCurrentBatch = int(math.floor(wordIdx/512))* 513 * 8
+                                                           
+                                                           
                         if bytesProgressedInCurrentBatch == 0: # indicator for an aborted analysis
                             print('terminated file, possible an aborted Abaqus analysis')
-                            fileIdx = fileSize
-                            break
+                            if os.path.exists( lockFile):
+                                print("found .lck file, waiting for new result .fil data")
+                                time.sleep(5)
+                                fnMap = np.memmap(fn, dtype='b', mode='r', )
+                                batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
+                                words = batchChunk.reshape( -1 , chunkSize )  # get words 
+                                words = words[:, 4:-4]
+                                words = words.reshape(-1, 8)
+                                continue
+                            else:
+                                parseFile = False
+                                break
+                        
                         fileIdx +=   bytesProgressedInCurrentBatch# move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
                         wordIdx =  ( (wordIdx%512) )                  # of course, restart at the present index
                         break
@@ -93,7 +118,7 @@ if __name__ == "__main__":
                     
                 del words
             else:
-                if os.path.exists( fn.split('.')[0]+'.lck' ):
+                if os.path.exists( lockFile ):
                     print("found .lck file, waiting for new result .fil data or CTRL-C to finish...")
                     time.sleep(10)
                 else:
