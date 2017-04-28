@@ -244,7 +244,7 @@ class EnsightChunkWiseCase:
                     if discardTimeMarks:
                         cf.write('{:}'.format(i) +"\n")
                     else:
-                        cf.write('{:1.6f}'.format(timeVal) +"\n")
+                        cf.write('{:1.10f}'.format(timeVal) +"\n")
                 
             if self.writeTransientSingleFiles:
                 cf.write("FILE\n")

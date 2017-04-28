@@ -92,7 +92,6 @@ class ExportEngine:
                }
                         
     def __init__(self, exportJobs, exportName):
-        
         self.perElementJobs = exportJobs.get('*ensightPerElementVariable', [])
         for entry in self.perElementJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
@@ -119,6 +118,7 @@ class ExportEngine:
                 entry['math'] = mathFunctions.get(entry['math'], False)
             
         self.allNodes = OrderedDefaultDict(Node)
+        
         self.allElements = OrderedDict()
         self.nSets = {}
         self.elSets = {}
@@ -130,6 +130,7 @@ class ExportEngine:
         self.currentIpt = 1
         self.nIncrements = 0
         self.timeHistory = []
+        self.labelCrossReferences = {}
 
         if exportJobs['*exportTimeHistory']:
             self.exportTimeHistory = exportJobs['*exportTimeHistory'][0].get('exportName', 'timeHistory')
@@ -157,7 +158,7 @@ class ExportEngine:
             1932: ('node set definition cont.', self.contAddNodeset),
             1933: ('element set definition', self.addElset),
             1934: ('element set definition cont.', self.contAddElset),
-            1940: ('label cross reference', lambda x : None),
+            1940: ('label cross reference', self.addLabelCrossReference),
             2000: ('start increment', self.addIncrement),
             2001: ('end increment', self.finishAndParseIncrement),}
     
@@ -173,6 +174,19 @@ class ExportEngine:
             
     def finishAndParseIncrement(self, recordContent):
         if self.currentState == 'model setup':
+            
+            # replace all label references by the respective labels            
+            for key, label in self.labelCrossReferences.items():
+                strKey = str(key)
+                if strKey in self.nSets:
+                    self.nSets[label] = self.nSets[strKey]
+                    self.nSets[label].name = label
+                    del self.nSets[strKey]
+                if strKey in self.elSets:
+                    self.elSets[label] = self.elSets[strKey]
+                    self.elSets[label].name = label
+                    del self.elSets[strKey]            
+            
             geometryTimesetNumber = None 
             geometry = self.createEnsightGeometryFromModel()
             self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
@@ -283,8 +297,8 @@ class ExportEngine:
         return geometry
     
     def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
-        
         elSet = self.elSets[jobElSetPartName]
+
         nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
         partsDict = {elSet.ensightPartID : ('coordinates', nodalVarTable)}
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
@@ -418,4 +432,11 @@ class ExportEngine:
         currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: dict() )) 
         currentIncrement['nodeResults'] = defaultdict(OrderedDict)
         self.timeHistory.append(tTotal)
+        
+    def addLabelCrossReference(self, recordContent):
+        r = recordContent
+        intKey = filFlag( r[0] )
+        label = filStrippedString ( r[1:] )
+        self.labelCrossReferences[ intKey ] = label
+        
 
