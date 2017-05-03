@@ -6,6 +6,14 @@ Created on Fri Oct 28 13:43:53 2016
 @author: matthias
 """
 
+
+"""
+
+TODO: Add Input parameter for dimension ( necessary as abaqus provides no info about the used dim!)
+
+
+"""
+
 import numpy as np
 from collections import OrderedDict, defaultdict
 import utils.ensightgoldformat as es
@@ -64,14 +72,14 @@ class ElSet:
         return self._reducedNodes
     
     def getEnsightCompatibleReducedNodeCoords(self,):
-        if not self._reducedNodeCoords3D:
+        if self._reducedNodeCoords3D is None:
             self._reducedNodeCoords3D = np.asarray([node.coords for node in self.getEnsightCompatibleReducedNodes().values()])
             if self._reducedNodeCoords3D.shape[1] < 3:
                 self._reducedNodeCoords3D = np.hstack( (self._reducedNodeCoords3D, np.zeros((self._reducedNodeCoords3D.shape[0],3 -self._reducedNodeCoords3D.shape[1])) ))   
         return self._reducedNodeCoords3D
     
     def getEnsightCompatibleElementNodeIndices(self,):
-        if not self._reducedElements:
+        if self._reducedElements is None:
             self._reducedNodeIndices = {node : i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys()) }
             self._reducedElements = OrderedDict()
             for eShape, elements in self.elements.items():
@@ -89,6 +97,7 @@ class NSet:
 class ExportEngine:
     ensightElementTypeMappings = {
                                   'CPS4': 'quad4',
+                                  'B21': 'bar2',
                }
                         
     def __init__(self, exportJobs, exportName):
@@ -148,6 +157,8 @@ class ExportEngine:
             101: ('U output', self.handleUOutput),
             104: ('RF output', self.handleRFOutput),
             201: ('NT output', self.handleNTOutput),
+            1501: ('Surface definition header',  lambda x : None),
+            1502: ('Surface facet',  lambda x : None),
             1900: ('element definition', self.addElement),
             1901: ('node definition', self.addNode),
             1902: ('active dof', lambda x : None),
@@ -177,7 +188,7 @@ class ExportEngine:
             
             # replace all label references by the respective labels            
             for key, label in self.labelCrossReferences.items():
-                strKey = str(key)
+                strKey =  key #str(key)
                 if strKey in self.nSets:
                     self.nSets[label] = self.nSets[strKey]
                     self.nSets[label].name = label
@@ -190,7 +201,13 @@ class ExportEngine:
             geometryTimesetNumber = None 
             geometry = self.createEnsightGeometryFromModel()
             self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
-            self.currentState = 'increment parsing'
+            ###
+                
+            
+            ### UPDATE STATE MACHINE !!!
+            
+            ###
+            self.currentState = 'undef'
             
         elif self.currentState == 'increment parsing':
             self.nIncrements +=1
@@ -230,6 +247,7 @@ class ExportEngine:
                 nCount = entry.get('periodicalPattern', 1)
                 nShift = entry.get('periodicalShift', 0)
                 for elDict in self.currentIncrement['elementResults'][resultLocation][jobElSetPartName].values():
+                    
                     for elResult in elDict.values():
                         for i in range(nCount):
                             currentRow.append( elResult[resultIndices + i*nShift].ravel() )
@@ -300,6 +318,7 @@ class ExportEngine:
         elSet = self.elSets[jobElSetPartName]
 
         nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
+        
         partsDict = {elSet.ensightPartID : ('coordinates', nodalVarTable)}
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
         
@@ -335,6 +354,9 @@ class ExportEngine:
             
         if not setName:
             setName = 'mainPart'
+        elif setName in self.labelCrossReferences:
+            setName = self.labelCrossReferences[setName]
+            
         self.currentSetName = setName
         
     def elementHeaderRecord(self, rec):
@@ -364,7 +386,7 @@ class ExportEngine:
     
     def handleUOutput(self, rec):
         node = filInt(rec[0])[0]
-        vals = filDouble(rec[1:])
+        vals = filDouble(rec[1:3])
         self.currentIncrement['nodeResults']['U'][node] = vals
 
     def handleRFOutput(self, rec):
@@ -374,13 +396,12 @@ class ExportEngine:
 
     def handleNTOutput(self, rec):
         node = filInt(rec[0])[0]
-        vals = filDouble(rec[1:])
+        vals = filDouble(rec[1])
         self.currentIncrement['nodeResults']['NT'][node] = vals
     
     def addNode(self, recordContent):
         label = filInt(recordContent[0])[0]   
-        coords = filDouble(recordContent[1:])
-        
+        coords = filDouble(recordContent[1:4])
         node = self.allNodes[label]
         node.label = label
         node.coords = coords
@@ -396,6 +417,8 @@ class ExportEngine:
         setName = filStrippedString(recordContent[0])
         if not setName:
             setName = 'mainPart'
+        elif setName in  self.labelCrossReferences:
+            setName = self.labelCrossReferences[setName]
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
         
@@ -407,8 +430,12 @@ class ExportEngine:
     
     def addNodeset(self, recordContent):
         setName = filStrippedString(recordContent[0])
+        
         if not setName:
             setName = 'defaultNodeSet'
+        elif setName in self.labelCrossReferences:
+            setName = self.labelCrossReferences[setName]
+            
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
         
@@ -419,8 +446,10 @@ class ExportEngine:
         self.nSets[self.currentSetName].appendNodes( [self.allNodes[n] for n in abqNodes ] )
     
     def addIncrement(self, recordContent):
+        self.currentState = 'increment parsing'
         r = recordContent
         tTotal, tStep = filDouble(r[0:2])
+        
         nStep, nInc = filInt(r[5:7])
         timeInc = filDouble(r[10])[0]
         currentIncrement = self.currentIncrement
@@ -437,6 +466,6 @@ class ExportEngine:
         r = recordContent
         intKey = filFlag( r[0] )
         label = filStrippedString ( r[1:] )
-        self.labelCrossReferences[ intKey ] = label
+        self.labelCrossReferences[ str(intKey) ] = label
         
 
