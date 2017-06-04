@@ -157,7 +157,7 @@ class ExportEngine:
             101: ('U output', self.handleUOutput),
             104: ('RF output', self.handleRFOutput),
             201: ('NT output', self.handleNTOutput),
-            1501: ('Surface definition header',  lambda x : None),
+            1501: ('Surface definition header', self.surfaceDefHeader),
             1502: ('Surface facet',  lambda x : None),
             1900: ('element definition', self.addElement),
             1901: ('node definition', self.addNode),
@@ -201,13 +201,9 @@ class ExportEngine:
             geometryTimesetNumber = None 
             geometry = self.createEnsightGeometryFromModel()
             self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
-            ###
-                
             
-            ### UPDATE STATE MACHINE !!!
-            
-            ###
-            self.currentState = 'undef'
+        elif self.currentState == 'surface definition':
+            pass
             
         elif self.currentState == 'increment parsing':
             self.nIncrements +=1
@@ -468,4 +464,6 @@ class ExportEngine:
         label = filStrippedString ( r[1:] )
         self.labelCrossReferences[ str(intKey) ] = label
         
+    def surfaceDefHeader(self, recordContent):
+        self.currentState = 'surface definition'
 
