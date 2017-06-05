@@ -8,6 +8,31 @@ from utils.inputfileparser import parseInputFile, printKeywords
 import time
 
 
+wordsize = 8  
+chunkSize = 513* wordsize
+batchSize = chunkSize * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
+
+def  getCurrentFileSize(fn,):
+    fileStat = os.stat(fn)
+    fileSize = fileStat.st_size
+    return fileSize
+
+def  getCurrentMaxIdxEnd(fn, fileIdx):
+    
+    fileRemainder = fileSize - fileIdx # remaining file size in BYTES
+    idxEnd = fileIdx + (batchSize if fileRemainder >= batchSize else fileRemainder) #get end index 
+                # in case we are operating on an unfinished file and 'catch' an unfinished chunk
+    idxEnd -= idxEnd % chunkSize
+    return idxEnd
+    
+def  getWords(fn, fileIdx, idxEnd):
+    fnMap = np.memmap(fn, dtype='b', mode='r', )
+    batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
+    words = batchChunk.reshape( -1 , chunkSize )  # get words 
+    words = words[:, 4:-4]
+    words = words.reshape(-1, 8)
+    return words
+
 if __name__ == "__main__":
     
     if len(sys.argv) < 3 or sys.argv[1] == '--help':
@@ -27,15 +52,11 @@ if __name__ == "__main__":
     lockFile =  fn.split('.')[0]+'.lck' 
     print("{:<20}{:>20}".format('opening file',fn))
     print('*'*48)
-    wordsize = 8  
+
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
-    
-    chunkSize = 513* wordsize
-    batchSize = chunkSize * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
-    fileStat = os.stat(fn)
-    fileSize = fileStat.st_size
-    
+
+    fileSize = getCurrentFileSize(fn)
     numberOfBatchSteps = math.ceil(fileSize / batchSize)
     
     print("file has a size of {:} bytes".format(fileSize))
@@ -47,21 +68,14 @@ if __name__ == "__main__":
     parseFile = True
     while parseFile:
         try:
-            fileStat = os.stat(fn)
-            fileSize = fileStat.st_size
+
+            fileSize = getCurrentFileSize(fn,)
             
             if fileIdx < fileSize:
-                fnMap = np.memmap(fn, dtype='b', mode='r', )
-                fileRemainder = fileSize - fileIdx # remaining file size in BYTES
-                idxEnd = fileIdx + (batchSize if fileRemainder >= batchSize else fileRemainder) #get end index 
-                
-                # in case we are operating on an unfinished file and 'catch' an unfinished chunk
-                idxEnd -= idxEnd % chunkSize
+
+                idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
+                words = getWords(fn, fileIdx, idxEnd)
                                    
-                batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
-                words = batchChunk.reshape( -1 , chunkSize )  # get words 
-                words = words[:, 4:-4]
-                words = words.reshape(-1, 8)
                 while wordIdx < len(words):
                     recordLength = eE.filInt(words[wordIdx])[0]  
                     if recordLength<=2:
@@ -69,11 +83,10 @@ if __name__ == "__main__":
                         if os.path.exists(lockFile):
                             print("found .lck file, waiting for new result .fil data")
                             time.sleep(5)
-                            fnMap = np.memmap(fn, dtype='b', mode='r', )
-                            batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
-                            words = batchChunk.reshape( -1 , chunkSize )  # get words 
-                            words = words[:, 4:-4]
-                            words = words.reshape(-1, 8)
+                            fileSize = getCurrentFileSize(fn,)
+                            idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
+                            words = getWords(fn, fileIdx, idxEnd)
+
                             continue
                         else:
                             parseFile = False
@@ -85,17 +98,16 @@ if __name__ == "__main__":
                     if wordIdx + recordLength > len(words):
                         bytesProgressedInCurrentBatch = int(math.floor(wordIdx/512))* 513 * 8
                                                            
-                                                           
                         if bytesProgressedInCurrentBatch == 0: # indicator for an aborted analysis
                             print('terminated file, possible an aborted Abaqus analysis')
                             if os.path.exists( lockFile):
                                 print("found .lck file, waiting for new result .fil data")
                                 time.sleep(5)
-                                fnMap = np.memmap(fn, dtype='b', mode='r', )
-                                batchChunk = np.copy(fnMap[fileIdx :   idxEnd])  # get chunk of file
-                                words = batchChunk.reshape( -1 , chunkSize )  # get words 
-                                words = words[:, 4:-4]
-                                words = words.reshape(-1, 8)
+                                
+                                fileSize = getCurrentFileSize(fn,)
+                                idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
+                                words = getWords(fn, fileIdx, idxEnd)
+                                
                                 continue
                             else:
                                 parseFile = False
@@ -114,9 +126,8 @@ if __name__ == "__main__":
                 if wordIdx == len(words):
                     wordIdx = 0
                     fileIdx = idxEnd
-#                    fileIdx += batchSize
-                    
                 del words
+                
             else:
                 if os.path.exists( lockFile ):
                     print("found .lck file, waiting for new result .fil data or CTRL-C to finish...")
