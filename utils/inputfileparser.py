@@ -29,7 +29,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'exportName':      (str, "export name of the variable"),
                          'source':          (str, 'Abaqus variable identifier'),
                          'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
-                         'data':            (int, "indices of the Abaqus source Variable")}),
+                         'data':            (str, "indices of the Abaqus source Variable")}),
                                                        
                     '*ensightPerElementVariable':        ("define an Ensight per element variable for export",
 
@@ -39,7 +39,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
                          'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
                          'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                         'data':            (str, "indices of the Abaqus source Variable")}),
                                                           
                     '*csvPerElementOutput':        ("export element results to a csv file",
                         {'set':             (str, "Abaqus element set") ,
@@ -49,7 +49,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
 #                         'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
                          'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
                          'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                         'data':            (str, "indices of the Abaqus source Variable")}),
                                                     
                     '*csvPerNodeOutput':        ("export node results to a csv file",
                         {'node':             (int, "(alternative) specify an Abaqus node label") ,
@@ -58,7 +58,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'source':          (str, 'Abaqus variable identifier'),
                          'math':            (str, 'define math function to be applied on node results'),
                          'fmt':             (str, '(optional) formatter for .csv output by np.savetxt'),
-                         'data':            ("npInt", "indices of the Abaqus source Variable")}),
+                         'data':            (str, "indices of the Abaqus source Variable")}),
                                                  
                       '*exportTimeHistory':        ("export the time history as csv file",
                             {'exportName':      (str, "export Name of the variable"),
