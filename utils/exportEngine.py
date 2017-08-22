@@ -39,7 +39,7 @@ def filFlag(word):
 
 def sliceFromString(string, shift=0):
     if ':' in string:
-        a, b = string.split(':'),
+        a, b = string.split(':')
         return slice ( int(a) + shift, int(b)  +shift )
     else:
         return slice(int(string) + shift, int(string)+1 +shift )
