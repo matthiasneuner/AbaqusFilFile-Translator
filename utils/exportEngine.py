@@ -223,14 +223,13 @@ class ExportEngine:
             self.nIncrements +=1
             timeSetID = 1
             self.ensightCase.setCurrentTime(timeSetID, self.currentIncrement['tTotal'])
+            self.timeHistory.append(self.currentIncrement['tTotal'])
+            
             print('parsing increment {:>5}  tTotal:{:>16.5f}'.format(self.nIncrements,self.currentIncrement['tTotal']))
             
             for entry in self.perNodeJobs:
                 jobElSetPartName = entry['set']
                 resultLocation = entry['source']
-#                if not 'slice' in entry:
-#                    entry['slice'] = sliceFromDataline(entry['data'][0])
-#                resultIndices = entry['data'][0]
                 resultIndices = entry['slice']
                 resultTypeLength = entry['dimensions'] 
                 jobName = entry['exportName']
@@ -241,16 +240,8 @@ class ExportEngine:
             for entry in self.perElementJobs:
                 jobElSetPartName = entry['set']
                 resultLocation = entry['source']
-#                resultIndices = entry['data'][0]
-#                if not 'slice' in entry:
-#                    entry['slices'] = sliceFromDataline(entry['data'][0])
                 jobName = entry['exportName']
-#                dimension = entry['dimensions']
                 for i, periodicalJobSlice in enumerate(entry['periodicalJobs']):
-                    
-#                nCount = entry.get('periodicalPattern', 1)
-#                nShift = entry.get('periodicalShift', 0)
-#                for i in range(nCount):
                     enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, 
                             jobName + (str(i+1) if len (entry['periodicalJobs']) > 1 else ''), 
                             resultLocation, periodicalJobSlice)
@@ -381,8 +372,7 @@ class ExportEngine:
         self.currentSetName = setName
         
     def elementHeaderRecord(self, rec):
-#        elNum = filInt(rec[0])[0]
-        elNum = filFlag(rec[0]) # march 2017: filInt does not worki in tensilebar?
+        elNum = filFlag(rec[0]) 
         self.currentElementNum = elNum 
         self.currentIpt = filFlag(rec[1])
            
@@ -481,7 +471,6 @@ class ExportEngine:
         currentIncrement['timeInc'] = timeInc
         currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: dict() )) 
         currentIncrement['nodeResults'] = defaultdict(OrderedDict)
-        self.timeHistory.append(tTotal)
         
     def addLabelCrossReference(self, recordContent):
         r = recordContent
