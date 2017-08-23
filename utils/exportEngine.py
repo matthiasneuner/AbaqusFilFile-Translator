@@ -295,7 +295,9 @@ class ExportEngine:
         for entry in self.csvPerNodeJobs:
             jobName = entry['exportName']
             table = np.asarray(entry['csvData']  )
-            np.savetxt('{:}.csv'.format(jobName), table, fmt=entry.get('fmt', '%.6e'), )
+            if table.ndim==3:
+                table = np.reshape(table, (len(table[:,0,0]), -1))
+            np.savetxt('{:}.csv'.format(jobName), table , fmt='%.6e') 
                 
         if self.exportTimeHistory:
             completeTimeHistory = np.asarray(self.timeHistory)
@@ -325,9 +327,7 @@ class ExportEngine:
     
     def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
         elSet = self.elSets[jobElSetPartName]
-
         nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
-        
         partsDict = {elSet.ensightPartID : ('coordinates', nodalVarTable)}
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
         
@@ -344,7 +344,6 @@ class ExportEngine:
 
         
         varDim = list(incrementVariableResultsArrays.values())[0].shape[1]
-#        print(type(varDim))
         enSightVar = es.EnsightPerElementVariable(jobName, varDim, None, )
         enSightVar.partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
         return enSightVar
