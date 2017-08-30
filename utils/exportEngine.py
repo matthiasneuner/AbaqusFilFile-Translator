@@ -112,17 +112,29 @@ class ExportEngine:
         self.perElementJobs = exportJobs.get('*ensightPerElementVariable', [])
         for entry in self.perElementJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
-#            entry['dimensions'] = entry.get('dimensions', len(entry['data']))
             entry['periodicalJobs'] = []
-#            entry['dimension'] = 
             for i in range(entry.get('periodicalPattern', 1)):
                 entry['periodicalJobs'].append ( sliceFromString( entry['data'][0][0], shift=entry.get('periodicalShift', 0) * i  ) )
             
-        self.perNodeJobs = exportJobs.get('*ensightPerNodeVariable', [])
-        for entry in self.perNodeJobs:
-            entry['exportName'] = entry.get('exportName', entry['source']) 
-            entry['dimensions'] = entry.get('dimensions', len(entry['data']))
-            entry['slice'] = sliceFromString (entry['data'][0][0])
+        
+        self.perNodeJobs = defaultdict(dict) # varName : { set : definiton }
+#                }
+        
+        for entry in exportJobs.get('*ensightPerNodeVariable', []):
+            dataLine = entry['data'][0][0]
+            
+            entry['slice'] = sliceFromString (dataLine)
+            setName = entry['set']
+            
+            entry['dimensions'] = entry.get('dimensions', 
+                                             (entry['slice'].stop - entry['slice'].start))
+            
+            self.perNodeJobs[entry['exportName']][setName] =  { } #= dict( entry )
+            
+            jobEntry = self.perNodeJobs[entry['exportName']][setName]
+            jobEntry['dimensions'] = entry.get('dimensions', len(entry['data']))
+            jobEntry['slice'] = sliceFromString (entry['data'][0][0])
+            jobEntry['source'] = entry['source']
             
         for entry in exportJobs.get('*defineElementType', []):
             self.ensightElementTypeMappings[entry['element']] = entry['shape']
@@ -227,13 +239,8 @@ class ExportEngine:
             
             print('parsing increment {:>5}  tTotal:{:>16.5f}'.format(self.nIncrements,self.currentIncrement['tTotal']))
             
-            for entry in self.perNodeJobs:
-                jobElSetPartName = entry['set']
-                resultLocation = entry['source']
-                resultIndices = entry['slice']
-                resultTypeLength = entry['dimensions'] 
-                jobName = entry['exportName']
-                enSightVar = self.createEnsightPerNodeVariableFromJob(jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength)
+            for jobName, jobs in self.perNodeJobs.items():
+                enSightVar = self.createEnsightPerNodeVariableFromPerNodeJobs(jobName, jobs)
                 self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
                 del enSightVar
                                     
@@ -325,10 +332,18 @@ class ExportEngine:
         geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
     
-    def createEnsightPerNodeVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, resultTypeLength):
-        elSet = self.elSets[jobElSetPartName]
-        nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
-        partsDict = {elSet.ensightPartID : ('coordinates', nodalVarTable)}
+    def createEnsightPerNodeVariableFromPerNodeJobs(self, jobName, jobs, ):
+        partsDict = {}
+        for setName, job in jobs.items():
+            elSet = self.elSets[setName]
+            resultLocation = job['source']
+            resultSlice = job['slice']
+            resultTypeLength = job['dimensions'] 
+            
+            nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node][resultSlice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
+                
+            partsDict[elSet.ensightPartID] =  ('coordinates', nodalVarTable)
+        
         enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
         
         return enSightVar
