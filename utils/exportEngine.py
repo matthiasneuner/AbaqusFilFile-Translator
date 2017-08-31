@@ -103,11 +103,12 @@ class NSet:
         self.nodes += nodes
 
 class ExportJob:
-    def __init__(self, exportName, dimensions, timeSetID, perSetJobs = None ):
+    def __init__(self, exportName, dimensions, timeSetID, perSetJobs = None, writeEmptyTimeSteps=True ):
         self.exportName = exportName
         self.dimensions = dimensions
         self.timeSetID = timeSetID
         self.perSetJobs = perSetJobs or {}
+        self.writeEmptyTimeSteps = writeEmptyTimeSteps
 #        self.perSetJobs = defaultdict(PerSetJob)
     
 class PerSetJob:
@@ -146,7 +147,7 @@ class ExportEngine:
                 timeSet = entry.get('timeSet', 1)
                 
                 if exportName not in self.perElementJobs:
-                    self.perElementJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None )
+                    self.perElementJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True)
                     
                 self.perElementJobs[exportName].perSetJobs[setName] = perSetJob
                 
@@ -164,7 +165,7 @@ class ExportEngine:
             timeSet = entry.get('timeSet', 1)
             
             if exportName not in self.perNodeJobs:
-                self.perNodeJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None )
+                self.perNodeJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True )
                 
             self.perNodeJobs[exportName].perSetJobs[setName] = perSetJob
             
@@ -363,43 +364,47 @@ class ExportEngine:
     def createEnsightPerNodeVariableFromPerNodeJob(self, exportJob ):
         
         partsDict = {}
-        resultTypeLength = exportJob.dimensions #list( jobs.values() ) [0] ['dimensions'] 
-        
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
+            
+            if setName not in self.currentIncrement['nodeResults'][perSetJob.source]:
+                continue
+            
             nodalVarTable = np.asarray([ self.currentIncrement['nodeResults']
                                                                 [perSetJob.source]
                                                                 [node]
                                                                 [perSetJob.slice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
             partsDict[elSet.ensightPartID] =  ('coordinates', nodalVarTable)
             
-        enSightVar = es.EnsightPerNodeVariable(exportJob.exportName, resultTypeLength, partsDict)
+        if partsDict or  exportJob.writeEmptyTimeSteps:
+            return  es.EnsightPerNodeVariable(exportJob.exportName, exportJob.dimensions, partsDict)
+        else:
+            return None
         
-        return enSightVar
         
     def createEnsightPerElementVariableFromPerElementJob(self, exportJob):
         
-        resultTypeLength = exportJob.dimensions
-        enSightVar = es.EnsightPerElementVariable(exportJob.exportName, resultTypeLength, None, )
         
+        partsDict = {}
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
             resultLocation = perSetJob.source
             resultSlice =   perSetJob.slice
             
             if setName not in self.currentIncrement['elementResults'][resultLocation]:
-#                print("omitting {:}, no results found".format(exportJob.exportName))
-                return False
+                continue
             
             incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][setName]
             incrementVariableResultsArrays = {}
-            
             for ensElType, elDict in incrementVariableResults.items():
                 incrementVariableResultsArrays[ensElType] = np.asarray([ elDict[el.label][resultSlice] for el in elSet.elements[ensElType] ])
-                
-        enSightVar.partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
-        
-        return enSightVar
+            
+            partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
+            
+        if partsDict or  exportJob.writeEmptyTimeSteps :
+            return es.EnsightPerElementVariable(exportJob.exportName, exportJob.dimensions, partsDict, )
+        else:
+            return None
         
         
     def outputDefinition(self, recordContent):
