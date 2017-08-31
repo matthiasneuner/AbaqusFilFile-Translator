@@ -109,13 +109,13 @@ class ExportEngine:
                }
                         
     def __init__(self, exportJobs, exportName):
+        
         self.perElementJobs = exportJobs.get('*ensightPerElementVariable', [])
         for entry in self.perElementJobs:
             entry['exportName'] = entry.get('exportName', entry['source']) 
             entry['periodicalJobs'] = []
             for i in range(entry.get('periodicalPattern', 1)):
                 entry['periodicalJobs'].append ( sliceFromString( entry['data'][0][0], shift=entry.get('periodicalShift', 0) * i  ) )
-            
         
         self.perNodeJobs = defaultdict(dict) # varName : { set : definiton }
 #                }
@@ -132,7 +132,9 @@ class ExportEngine:
             self.perNodeJobs[entry['exportName']][setName] =  { } #= dict( entry )
             
             jobEntry = self.perNodeJobs[entry['exportName']][setName]
+   
             jobEntry['dimensions'] = entry.get('dimensions', len(entry['data']))
+            
             jobEntry['slice'] = sliceFromString (entry['data'][0][0])
             jobEntry['source'] = entry['source']
             
@@ -248,10 +250,11 @@ class ExportEngine:
                 jobElSetPartName = entry['set']
                 resultLocation = entry['source']
                 jobName = entry['exportName']
+                dimension = entry.get('dimensions', False)
                 for i, periodicalJobSlice in enumerate(entry['periodicalJobs']):
                     enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, 
                             jobName + (str(i+1) if len (entry['periodicalJobs']) > 1 else ''), 
-                            resultLocation, periodicalJobSlice)
+                            resultLocation, periodicalJobSlice, dimension)
                     self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
                 del enSightVar
                 
@@ -348,7 +351,7 @@ class ExportEngine:
         
         return enSightVar
         
-    def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
+    def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices, dimension):
         
         elSet = self.elSets[jobElSetPartName]
         incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
@@ -358,8 +361,11 @@ class ExportEngine:
             incrementVariableResultsArrays[ensElType] = np.asarray([ elDict[el.label][resultIndices] for el in elSet.elements[ensElType] ])
 
         
-        varDim = list(incrementVariableResultsArrays.values())[0].shape[1]
+        varDim = dimension or list(incrementVariableResultsArrays.values())[0].shape[1]
+        print(varDim)
+        
         enSightVar = es.EnsightPerElementVariable(jobName, varDim, None, )
+        
         enSightVar.partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
         return enSightVar
         

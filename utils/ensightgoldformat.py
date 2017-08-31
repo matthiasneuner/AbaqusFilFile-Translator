@@ -152,7 +152,8 @@ class EnsightPerElementVariable:
         self.name = name
         self.description = name
         self.partsDict = ensightPartsDict or {} # { EnsightPart: np.array(variableValues) }
-        self.varType = ensightPerElementVariableTypes[variableDimension]
+        self.varType = ensightPerElementVariableTypes[variableDimension]#
+        self.variableDimension = variableDimension
         
     def writeToFile(self, fileHandle):
         f = fileHandle
@@ -163,6 +164,8 @@ class EnsightPerElementVariable:
             for elType, values in elTypeDict.items():
                 writeC80(f, elType)
                 writeCFloat(f, values.T)
+                if values.shape[1] < self.variableDimension:
+                    writeCFloat(f, np.zeros( (values.shape[0],self.variableDimension - values.shape[1])))
                      
 class EnsightChunkWiseCase:
     
