@@ -29,6 +29,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'exportName':      (str, "export name of the variable"),
                          'source':          (str, 'Abaqus variable identifier'),
                          'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
+                         'timeSet':         (int, "(optional), define a timeset, for 'different' timelines"),
                          'data':            (str, "indices of the Abaqus source Variable")}),
                                                        
                     '*ensightPerElementVariable':        ("define an Ensight per element variable for export",
@@ -39,6 +40,7 @@ typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqu
                          'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
                          'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
                          'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
+                         'timeSet':         (int, "(optional), define a timeset, for 'different' timelines"),
                          'data':            (str, "slice or index of the variable in the per Element data")}),
                                                           
                     '*csvPerElementOutput':        ("export element results to a csv file",

@@ -102,39 +102,71 @@ class NSet:
     def appendNodes(self, nodes):
         self.nodes += nodes
 
+class ExportJob:
+    def __init__(self, exportName, dimensions, timeSetID, perSetJobs = None ):
+        self.exportName = exportName
+        self.dimensions = dimensions
+        self.timeSetID = timeSetID
+        self.perSetJobs = perSetJobs or {}
+#        self.perSetJobs = defaultdict(PerSetJob)
+    
+class PerSetJob:
+    def __init__(self, setName, resultSlice, variableSource):
+        self.setName = setName
+        self.slice = resultSlice
+        self.source = variableSource
+
 class ExportEngine:
     ensightElementTypeMappings = {
                                   'CPS4': 'quad4',
                                   'B21': 'bar2',
                }
                         
-    def __init__(self, exportJobs, exportName):
-        self.perElementJobs = exportJobs.get('*ensightPerElementVariable', [])
-        for entry in self.perElementJobs:
-            entry['exportName'] = entry.get('exportName', entry['source']) 
-            entry['periodicalJobs'] = []
-            for i in range(entry.get('periodicalPattern', 1)):
-                entry['periodicalJobs'].append ( sliceFromString( entry['data'][0][0], shift=entry.get('periodicalShift', 0) * i  ) )
-            
+    def __init__(self, exportJobs, caseName):
         
-        self.perNodeJobs = defaultdict(dict) # varName : { set : definiton }
-#                }
-        
+        self.perElementJobs = {}
+        for entry in exportJobs.get('*ensightPerElementVariable', []):
+            nPattern = entry.get('periodicalPattern', 1)
+            for i in range(nPattern):
+                setName = entry['set']
+                exportName = '{:}_{:}'.format(entry['exportName'], i)# if nPattern > 1 else entry['exportName']
+                
+                source = entry['source']
+                
+                if source == 'SDVUEL':
+                    perSetJob = PerSetJob ( setName,
+                                        sliceFromString( entry['data'][0][0], shift=entry.get('periodicalShift', 0) * i  ),
+                                        'SDV@1')
+                else:
+                    perSetJob = PerSetJob ( setName,
+                                        sliceFromString( entry['data'][0][0] ),
+                                        '{:}@{:}'.format(entry['source'], i+1 ))
+                
+                dimensions = entry.get('dimensions', (perSetJob.slice.stop - perSetJob.slice.start))
+                timeSet = entry.get('timeSet', 1)
+                
+                if exportName not in self.perElementJobs:
+                    self.perElementJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None )
+                    
+                self.perElementJobs[exportName].perSetJobs[setName] = perSetJob
+                
+        self.perNodeJobs = {}
         for entry in exportJobs.get('*ensightPerNodeVariable', []):
-            dataLine = entry['data'][0][0]
-            
-            entry['slice'] = sliceFromString (dataLine)
+
             setName = entry['set']
+            exportName = entry['exportName'] 
             
-            entry['dimensions'] = entry.get('dimensions', 
-                                             (entry['slice'].stop - entry['slice'].start))
+            perSetJob = PerSetJob ( setName,
+                                    sliceFromString (entry['data'][0][0]),
+                                    entry['source'])
             
-            self.perNodeJobs[entry['exportName']][setName] =  { } #= dict( entry )
+            dimensions = entry.get('dimensions', (perSetJob.slice.stop - perSetJob.slice.start))
+            timeSet = entry.get('timeSet', 1)
             
-            jobEntry = self.perNodeJobs[entry['exportName']][setName]
-            jobEntry['dimensions'] = entry.get('dimensions', len(entry['data']))
-            jobEntry['slice'] = sliceFromString (entry['data'][0][0])
-            jobEntry['source'] = entry['source']
+            if exportName not in self.perNodeJobs:
+                self.perNodeJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None )
+                
+            self.perNodeJobs[exportName].perSetJobs[setName] = perSetJob
             
         for entry in exportJobs.get('*defineElementType', []):
             self.ensightElementTypeMappings[entry['element']] = entry['shape']
@@ -172,12 +204,12 @@ class ExportEngine:
         else:
             self.exportTimeHistory = False
         
-        self.ensightCase = es.EnsightChunkWiseCase('.', exportName)
+        self.ensightCase = es.EnsightChunkWiseCase('.', caseName)
         self.ensightCaseDiscardTimeMarks = False# exportJobs.get('discardTime', False)
         
         self.knownRecords = { 
             1: ('Element header record', self.elementHeaderRecord),
-            5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV', appendGaussPt=False)),
+            5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV')),
             11: ('S output', lambda x : self.handlePerElementOutput(x, 'S')),
             21: ('E output', lambda x : self.handlePerElementOutput(x, 'E')),
             101: ('U output', self.handleUOutput),
@@ -233,28 +265,24 @@ class ExportEngine:
             
         elif self.currentState == 'increment parsing':
             self.nIncrements +=1
-            timeSetID = 1
-            self.ensightCase.setCurrentTime(timeSetID, self.currentIncrement['tTotal'])
+            self.ensightCase.setCurrentTime(self.currentIncrement['tTotal'])
             self.timeHistory.append(self.currentIncrement['tTotal'])
             
             print('parsing increment {:>5}  tTotal:{:>16.5f}'.format(self.nIncrements,self.currentIncrement['tTotal']))
             
-            for jobName, jobs in self.perNodeJobs.items():
-                enSightVar = self.createEnsightPerNodeVariableFromPerNodeJobs(jobName, jobs)
-                self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
-                del enSightVar
-                                    
-            for entry in self.perElementJobs:
-                jobElSetPartName = entry['set']
-                resultLocation = entry['source']
-                jobName = entry['exportName']
-                for i, periodicalJobSlice in enumerate(entry['periodicalJobs']):
-                    enSightVar = self.createEnsightPerElementVariableFromJob(jobElSetPartName, 
-                            jobName + (str(i+1) if len (entry['periodicalJobs']) > 1 else ''), 
-                            resultLocation, periodicalJobSlice)
-                    self.ensightCase.writeVariableTrendChunk(enSightVar, timeSetID)
-                del enSightVar
+            for exportJob in self.perNodeJobs.values():
+                    enSightVar = self.createEnsightPerNodeVariableFromPerNodeJob(exportJob)
+                    if enSightVar:
+                        self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
+                        del enSightVar
+                                        
+            for exportJob in self.perElementJobs.values():
                 
+                    enSightVar = self.createEnsightPerElementVariableFromPerElementJob(exportJob)
+                    if enSightVar:
+                        self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
+                        del enSightVar
+                    
 #            for entry in self.csvPerElementSetJobs:
 #                currentRow = []
 #                jobElSetPartName = entry['set']
@@ -332,36 +360,47 @@ class ExportEngine:
         geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
     
-    def createEnsightPerNodeVariableFromPerNodeJobs(self, jobName, jobs, ):
+    def createEnsightPerNodeVariableFromPerNodeJob(self, exportJob ):
+        
         partsDict = {}
-        for setName, job in jobs.items():
+        resultTypeLength = exportJob.dimensions #list( jobs.values() ) [0] ['dimensions'] 
+        
+        for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
-            resultLocation = job['source']
-            resultSlice = job['slice']
-            resultTypeLength = job['dimensions'] 
-            
-            nodalVarTable = np.asarray([ self.currentIncrement['nodeResults'][resultLocation][node][resultSlice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
-                
+            nodalVarTable = np.asarray([ self.currentIncrement['nodeResults']
+                                                                [perSetJob.source]
+                                                                [node]
+                                                                [perSetJob.slice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
             partsDict[elSet.ensightPartID] =  ('coordinates', nodalVarTable)
-        
-        enSightVar = es.EnsightPerNodeVariable(jobName, resultTypeLength, partsDict)
+            
+        enSightVar = es.EnsightPerNodeVariable(exportJob.exportName, resultTypeLength, partsDict)
         
         return enSightVar
         
-    def createEnsightPerElementVariableFromJob(self, jobElSetPartName, jobName, resultLocation, resultIndices):
+    def createEnsightPerElementVariableFromPerElementJob(self, exportJob):
         
-        elSet = self.elSets[jobElSetPartName]
-        incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][jobElSetPartName]
+        resultTypeLength = exportJob.dimensions
+        enSightVar = es.EnsightPerElementVariable(exportJob.exportName, resultTypeLength, None, )
         
-        incrementVariableResultsArrays = {}
-        for ensElType, elDict in incrementVariableResults.items():
-            incrementVariableResultsArrays[ensElType] = np.asarray([ elDict[el.label][resultIndices] for el in elSet.elements[ensElType] ])
-
-        
-        varDim = list(incrementVariableResultsArrays.values())[0].shape[1]
-        enSightVar = es.EnsightPerElementVariable(jobName, varDim, None, )
+        for setName, perSetJob in exportJob.perSetJobs.items():
+            elSet = self.elSets[setName]
+            resultLocation = perSetJob.source
+            resultSlice =   perSetJob.slice
+            
+            if setName not in self.currentIncrement['elementResults'][resultLocation]:
+#                print("omitting {:}, no results found".format(exportJob.exportName))
+                return False
+            
+            incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][setName]
+            incrementVariableResultsArrays = {}
+            
+            for ensElType, elDict in incrementVariableResults.items():
+                incrementVariableResultsArrays[ensElType] = np.asarray([ elDict[el.label][resultSlice] for el in elSet.elements[ensElType] ])
+                
         enSightVar.partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
+        
         return enSightVar
+        
         
     def outputDefinition(self, recordContent):
         """
@@ -373,8 +412,9 @@ class ExportEngine:
         flag = filFlag(recordContent[0])
         if flag == 0:
             setName = filStrippedString(recordContent[1])
-            self.currentEnsightElementType = self.ensightElementTypeMappings[filStrippedString(recordContent[2])]
-            
+            elType = filStrippedString(recordContent[2])
+            self.currentEnsightElementType = self.ensightElementTypeMappings[elType]
+                        
         elif flag == 1:
             setName = filStrippedString(recordContent[1])
             
@@ -390,15 +430,14 @@ class ExportEngine:
         self.currentElementNum = elNum 
         self.currentIpt = filFlag(rec[1])
            
-    def handlePerElementOutput(self, rec, location, appendGaussPt=True):
+    def handlePerElementOutput(self, rec, location):
         res = filDouble(rec)
         currentIncrement = self.currentIncrement    
         currentSetName = self.currentSetName
         currentEnsightElementType =self.currentEnsightElementType
         currentElementNum = self.currentElementNum
         
-        if appendGaussPt:
-            location += '@'+str(self.currentIpt)
+        location += '@'+str(self.currentIpt)
         
         if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
             currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  {}
