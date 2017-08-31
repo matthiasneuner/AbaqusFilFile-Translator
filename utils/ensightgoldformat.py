@@ -164,8 +164,8 @@ class EnsightPerElementVariable:
             for elType, values in elTypeDict.items():
                 writeC80(f, elType)
                 writeCFloat(f, values.T)
-            if values.shape[1] < self.variableDimension:
-                writeCFloat(f, np.zeros( (values.shape[0],self.variableDimension - values.shape[1])))
+                if values.shape[1] < self.variableDimension:
+                    writeCFloat(f, np.zeros( (values.shape[0],self.variableDimension - values.shape[1])))
                      
 class EnsightChunkWiseCase:
     
