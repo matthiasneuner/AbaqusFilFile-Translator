@@ -7,13 +7,6 @@ Created on Fri Oct 28 13:43:53 2016
 """
 
 
-"""
-
-TODO: Add Input parameter for dimension ( necessary as abaqus provides no info about the used dim!)
-
-
-"""
-
 import numpy as np
 from collections import OrderedDict, defaultdict
 import utils.ensightgoldformat as es
@@ -109,7 +102,6 @@ class ExportJob:
         self.timeSetID = timeSetID
         self.perSetJobs = perSetJobs or {}
         self.writeEmptyTimeSteps = writeEmptyTimeSteps
-#        self.perSetJobs = defaultdict(PerSetJob)
     
 class PerSetJob:
     def __init__(self, setName, resultSlice, variableSource):
@@ -367,13 +359,14 @@ class ExportEngine:
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
             
-            if setName not in self.currentIncrement['nodeResults'][perSetJob.source]:
+            try:
+                nodalVarTable = np.asarray([ self.currentIncrement['nodeResults']
+                                                                    [perSetJob.source]
+                                                                    [node]
+                                                                    [perSetJob.slice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
+            except:
                 continue
-            
-            nodalVarTable = np.asarray([ self.currentIncrement['nodeResults']
-                                                                [perSetJob.source]
-                                                                [node]
-                                                                [perSetJob.slice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
+    
             partsDict[elSet.ensightPartID] =  ('coordinates', nodalVarTable)
             
         if partsDict or  exportJob.writeEmptyTimeSteps:
@@ -383,7 +376,6 @@ class ExportEngine:
         
         
     def createEnsightPerElementVariableFromPerElementJob(self, exportJob):
-        
         
         partsDict = {}
         for setName, perSetJob in exportJob.perSetJobs.items():
