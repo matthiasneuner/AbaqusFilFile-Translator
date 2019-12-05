@@ -106,9 +106,9 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
 def printKeywords():
     """ print the input file language set"""
     kwString = "    {:}    "
-    kwDataString = "        {:22}{:20}"    
+    kwDataString = "        {:30}{:30}"    
     
-    wrapper = textwrap.TextWrapper(width=80,replace_whitespace=False)
+    wrapper = textwrap.TextWrapper(width=120,replace_whitespace=False)
     for kw, (kwDoc,optiondict) in sorted(typeMappings.items()):
         wrapper.initial_indent = kwString.format(str(kw))
         wrapper.subsequent_indent = " "*len(wrapper.initial_indent)

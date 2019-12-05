@@ -35,6 +35,63 @@ general usage:
 available keywords:
 -------------------
 
+    *defineElementType    assign an ensight Shape to an Abaqus Element
+
+        element                       string                        Abaqus (User) Element
+        shape                         string                        Ensight Shape
+
+
+    *ensightCaseOptions    modify Ensight export options
+
+        discardTime                   string                        discard Time values and replace by enumeration of
+                                                                    time steps
+
+
+    *ensightPerElementVariable    define an Ensight per element variable for export
+
+        dimensions                    integer                       (optional), 1/3/6/9 for
+                                                                    scalar/vector/tensor/tensor9; missing components
+                                                                    will be zero filled
+        exportName                    string                        export name of the variable
+        f(x)                          string                        (optional), apply a mathematical/array expression on
+                                                                    the result array (per Element, slow!)
+        integrationPointDataDistance  integer                       (optional), define a periodical pattern: initial
+                                                                    constant offset )
+        integrationPointDataOffset    integer                       (optional), define a periodical pattern: offset
+                                                                    between extraction points
+        nIntegrationPoints            integer                       (optional), define a periodical pattern for a
+                                                                    repeatet extraction (e.g. for results @ GaussPts)
+        set                           string                        Abaqus element set
+        source                        string                        Abaqus variable identifier
+        timeSet                       integer                       (optional), define a timeset, for 'different'
+                                                                    timelines
+        values                        string                        (optional), define a index/slice to extract a
+                                                                    subarray from the total result array (per Element)
+
+
+    *ensightPerNodeVariable    define an Ensight per node variable for export
+
+        dimensions                    integer                       (optional), 1/3/6/9 for
+                                                                    scalar/vector/tensor/tensor9; missing components
+                                                                    will be zero filled
+        exportName                    string                        export name of the variable
+        f(x)                          string                        (optional), apply a mathematical/array expression on
+                                                                    the result array (per Element, slow!)
+        fillMissingValues             float                         (optional), fill missing nodal values with a
+                                                                    constant values, requires specified dimensions
+                                                                    (slow!)
+        set                           string                        Abaqus element set
+        source                        string                        Abaqus variable identifier
+        timeSet                       integer                       (optional), define a timeset, for 'different'
+                                                                    timelines
+        values                        string                        (optional), define a index/slice to extract a
+                                                                    subarray from the total result array (per Element)
+
+
+    *include    (optional) load extra .inp file (fragment), use relative path to current .inp
+
+        input                         string                        filename
+
 element type can be any of:
 point g_point
 bar2 g_bar2
