@@ -1,8 +1,11 @@
-# -*- coding: utf-8 -*-
 """
 Created on Tue Oct  6 09:18:51 2015
 
-@author: c8441141
+Copyright (C) 2019 Matthias Neuner <matthias.neuner@uibk.ac.at>
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 import numpy as np
 import os
@@ -36,10 +39,10 @@ class EnsightUnstructuredPart:
     {strElementType : [ ( intLabel = None, [nodeList] ) ]}"""
     def __init__(self, description, partNumber, elements, nodes, nodeLabels):
         self.structureType = "coordinates"
-        self.nodes = nodes    # 2D numpyArray
-        self.nodeLabels = nodeLabels    #[integer]
-        self.elements = elements             #elementSet entries: {strElementType : [ ( intLabel = None, [nodeList] ) ]}
-        self.description = description  #string, describing the part; max. 80 characters
+        self.nodes = nodes    
+        self.nodeLabels = nodeLabels  
+        self.elements = elements       
+        self.description = description  
         self.partNumber = partNumber 
         
     def writeToFile(self, binaryFileHandle, printNodeLabels=True, printElementLabels=True):
@@ -172,7 +175,6 @@ class EnsightChunkWiseCase:
     def __init__(self, directory, caseName, writeTransientSingleFiles = True):
         self.directory = directory
         self.caseName = caseName
-#        self.caseFileNamePrefix = os.path.join(directory, caseName)  
         self.caseFileNamePrefix = caseName
         self.writeTransientSingleFiles = writeTransientSingleFiles
         self.timeAndFileSets = {}

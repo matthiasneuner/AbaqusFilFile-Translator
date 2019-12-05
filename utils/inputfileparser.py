@@ -1,85 +1,60 @@
-# -*- coding: utf-8 -*-
 """
 Created on Tue Sep 22 18:56:03 2015
 
-@author: matthias
+Copyright (C) 2019 Matthias Neuner <matthias.neuner@uibk.ac.at>
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """  
 
 import numpy as np
 from os.path import dirname, join
 import textwrap
+import shlex
 
 dTypes = {int : "integer",
           float: "float",
-          str: "string",          
-          "npInt": "numpy int array",
-          }
+          str: "string",}
     
-typeMappings = {    '*defineElementType' : ('assign an ensight Shape to an Abaqus Element',
-                                            {'element' : (str, 'Abaqus (User) Element'),
-                                             'shape' :  (str, 'Ensight Shape'),
-                                             }),
-                    '*ensightCaseOptions' :  ('modify Ensight export options',
-                                            {'discardTime' : (str, 'discard Time values and replace by enumeration of time steps'),
-                                             }),
+typeMappings = {    '*defineElementType' :                  ('assign an ensight Shape to an Abaqus Element',
+                        {'element' :                        (str, 'Abaqus (User) Element'),
+                         'shape' :                          (str, 'Ensight Shape'), }),
 
-                    '*ensightPerNodeVariable':        ("define an Ensight per node variable for export",
+                    '*ensightCaseOptions' :                 ('modify Ensight export options',
+                        {'discardTime' :                    (str, 'discard Time values and replace by enumeration of time steps'), }),
 
-                        {'set':             (str, "Abaqus element set") ,
-                         'exportName':      (str, "export name of the variable"),
-                         'source':          (str, 'Abaqus variable identifier'),
-                         'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
-                         'timeSet':         (int, "(optional), define a timeset, for 'different' timelines"),
-                         'data':            (str, "indices of the Abaqus source Variable")}),
+                    '*ensightPerNodeVariable':              ("define an Ensight per node variable for export",
+                        {'set':                             (str, "Abaqus element set") ,
+                         'exportName':                      (str, "export name of the variable"),
+                         'source':                          (str, 'Abaqus variable identifier'),
+                         'dimensions':                      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
+                         'timeSet':                         (int, "(optional), define a timeset, for 'different' timelines"),
+                         'values':                          (str, "(optional), define a index/slice to extract a subarray from the total result array (per Element)"),
+                         'f(x)':                            (str, "(optional), apply a mathematical/array expression on the result array (per Element, slow!)"),
+                         'fillMissingValues':               (float, "(optional), fill missing nodal values with a constant values, requires specified dimensions (slow!)"),
+                         }),
                                                        
-                    '*ensightPerElementVariable':        ("define an Ensight per element variable for export",
-
-                        {'set':             (str, "Abaqus element set") ,
-                         'exportName':      (str, "export name of the variable"),
-                         'source':          (str, 'Abaqus variable identifier'),
-                         'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
-                         'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'timeSet':         (int, "(optional), define a timeset, for 'different' timelines"),
-                         'data':            (str, "slice or index of the variable in the per Element data")}),
-                                                          
-                    '*csvPerElementOutput':        ("export element results to a csv file",
-                        {'set':             (str, "Abaqus element set") ,
-                         'exportName':      (str, "export name of the variable"),
-                         'source':          (str, 'Abaqus variable identifier'),
-                         'fmt':             (str, '(optional) formatter for csv output by np.savetxt'),
-#                         'dimensions':      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
-                         'periodicalPattern':(int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'periodicalShift': (int, "(optional), define a periodical pattern for extraction (e.g. for GaussPts)"),
-                         'data':            (str, "slice or index of the variable in the per Element data")}),
-                                                    
-                    '*csvPerNodeOutput':        ("export node results to a csv file",
-                        {'node':             (int, "(alternative) specify an Abaqus node label") ,
-                         'nSet':            (str, '(alternative) specify an Abaqus node set'),
-                         'exportName':      (str, "export name of the variable"),
-                         'source':          (str, 'Abaqus variable identifier'),
-                         'math':            (str, 'define math function to be applied on node results'),
-                         'fmt':             (str, '(optional) formatter for .csv output by np.savetxt'),
-                         'data':            (str, "slice or index of the variable in the per Element data")}),
-                                                 
-                      '*exportTimeHistory':        ("export the time history as csv file",
-                            {'exportName':      (str, "export Name of the variable"),
-                             }),
+                    '*ensightPerElementVariable':           ("define an Ensight per element variable for export",
+                        {'set':                             (str, "Abaqus element set") ,
+                         'exportName':                      (str, "export name of the variable"),
+                         'source':                          (str, 'Abaqus variable identifier'),
+                         'dimensions':                      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
+                         'nIntegrationPoints':              (int, "(optional), define a periodical pattern for a repeatet extraction (e.g. for results @ GaussPts)"),
+                         'integrationPointDataDistance':    (int, "(optional), define a periodical pattern: initial constant offset )"),
+                         'integrationPointDataOffset':      (int, "(optional), define a periodical pattern: offset between extraction points"),
+                         'timeSet':                         (int, "(optional), define a timeset, for 'different' timelines"),
+                         'values':                          (str, "(optional), define a index/slice to extract a subarray from the total result array (per Element)"),
+                         'f(x)':                            (str, "(optional), apply a mathematical/array expression on the result array (per Element, slow!)")}),
                                
-                    '*include': ("(optional) load extra .inp file (fragment), use relative path to current .inp",
-                        {'input':           (str, "filename")}),
-                        
-
+                    '*include':                             ("(optional) load extra .inp file (fragment), use relative path to current .inp",
+                        {'input':                           (str, "filename")}),
                 }
                 
 def getMapType(kw, varName):
     kwDict = typeMappings.get(kw, (None,{}) )[1]    
     mType = kwDict.get(varName, [str])[0]
     return mType
-    
-def npPrepare(data):
-    """ replaces 'x' in datalines with np.infs"""
-    return data.replace("x", "inf")
 
 def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
     """ parse an Abaqus like input file to generate an dictionary with its content"""
@@ -90,8 +65,10 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
     keyword = currentKeyword
     with open(fileName) as f:
         for l in f:
-            lineElements = [x.strip() for x in l.split(",")]
-            lineElements=list(filter(None,lineElements))
+            lexer = shlex.shlex(l.strip(), posix=True)
+            lexer.whitespace_split = True
+            lexer.whitespace = ','
+            lineElements = [x.strip() for x in lexer]
             if not lineElements or lineElements[0].startswith("**"):
                 # line is a comment
                 pass
@@ -102,7 +79,6 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
                 optionAssignments = lineElements[1:]
                 
                 objectentry = {}
-                objectentry['data'] = []
                 objectentry['inputFile'] = fileName # save also the filename of the original inputfile!
                     
                 for ass in optionAssignments:
@@ -125,18 +101,6 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
                     keyword = lastkeyword
                 else:
                     fileDict[keyword].append(objectentry)
-                
-            else:
-                # line is a dataline
-                data = lineElements
-                mType = getMapType(keyword, "data")
-                if mType is not None:
-                    if mType == "npInt":
-                        data = np.array([npPrepare(x) for x in data], dtype = np.int)
-                    else:    
-                        data = [mType(d) for d in data]
-                fileDict[keyword][-1]['data'].append(data)
-    
     return fileDict
 
 def printKeywords():

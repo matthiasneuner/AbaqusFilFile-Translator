@@ -1,24 +1,18 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Fri Oct 28 13:43:53 2016
 
-@author: matthias
+Copyright (C) 2019 Matthias Neuner <matthias.neuner@uibk.ac.at>
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
-
 import numpy as np
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 import utils.ensightgoldformat as es
 
-from utils.OrderedDefaultDict import OrderedDefaultDict
-
-mathFunctions = {'sum' : np.sum,
-                 'mean': np.mean
-                 }
-
 def filInt(word):
-#     return word[0:4].view( '<4i')
     return word.view('<i8').ravel()
 def filString(word):
     return word.view('a8')
@@ -29,6 +23,8 @@ def filDouble(word):
 def filFlag(word):
     return word[0:4].view('<i')[0]
 
+def makeExtractionFunction(expression, symbol='x'):
+    return lambda x : eval ( expression, globals(), { symbol : x} )
 
 def sliceFromString(string, shift=0):
     if ':' in string:
@@ -53,7 +49,7 @@ class ElSet:
         self.name  = name
         self.ensightPartID = ensightPartID
         
-        self.elements = OrderedDefaultDict(list)
+        self.elements = defaultdict(list)
         self.appendElements(elements)
             
         self._elementLabels = None
@@ -66,25 +62,23 @@ class ElSet:
             self.elements[element.shape].append(element)
             
     def getEnsightCompatibleReducedNodes(self, ):
-        if self._reducedNodes is None:
-            self._reducedNodes = OrderedDict([ (node.label, node) for elementsByShape in self.elements.values() 
-                                                                for element in elementsByShape 
-                                                                    for node in element.nodes ])
+        self._reducedNodes = dict([ (node.label, node) for elementsByShape in self.elements.values() 
+                                                            for element in elementsByShape 
+                                                                for node in element.nodes ])
         return self._reducedNodes
     
     def getEnsightCompatibleReducedNodeCoords(self,):
-        if self._reducedNodeCoords3D is None:
-            self._reducedNodeCoords3D = np.asarray([node.coords for node in self.getEnsightCompatibleReducedNodes().values()])
-            if self._reducedNodeCoords3D.shape[1] < 3:
-                self._reducedNodeCoords3D = np.hstack( (self._reducedNodeCoords3D, np.zeros((self._reducedNodeCoords3D.shape[0],3 -self._reducedNodeCoords3D.shape[1])) ))   
+        self._reducedNodeCoords3D = np.asarray([node.coords for node in self.getEnsightCompatibleReducedNodes().values()])
+        if self._reducedNodeCoords3D.shape[1] < 3:
+            # zero fill to 3D
+            self._reducedNodeCoords3D = np.pad ( self._reducedNodeCoords3D, (0, 3 - self._reducedNodeCoords3D.shape[1]), mode='constant')
         return self._reducedNodeCoords3D
     
     def getEnsightCompatibleElementNodeIndices(self,):
-        if self._reducedElements is None:
-            self._reducedNodeIndices = {node : i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys()) }
-            self._reducedElements = OrderedDict()
-            for eShape, elements in self.elements.items():
-                self._reducedElements[eShape] = [ (e.label , [ self._reducedNodeIndices[n.label] for n in e.nodes] ) for e in elements  ]
+        self._reducedNodeIndices = {node : i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys()) }
+        self._reducedElements = {}
+        for eShape, elements in self.elements.items():
+            self._reducedElements[eShape] = [ (e.label , [ self._reducedNodeIndices[n.label] for n in e.nodes] ) for e in elements  ]
         return self._reducedElements
     
 class NSet:
@@ -104,110 +98,49 @@ class ExportJob:
         self.writeEmptyTimeSteps = writeEmptyTimeSteps
     
 class PerSetJob:
-    def __init__(self, setName, resultSlice, variableSource):
+    def __init__(self, setName, variableSource, extractionSlice=False, extractionFunction=False, offset=False, fillMissingValues=False):
         self.setName = setName
-        self.slice = resultSlice
+        self.extractionSlice = extractionSlice
+        self.extractionFunction = extractionFunction
+        self.offset = offset
         self.source = variableSource
+        self.fillMissingValues = fillMissingValues
 
 class ExportEngine:
-    ensightElementTypeMappings = {
-                                  'CPS4': 'quad4',
-                                  'B21': 'bar2',
-               }
                         
     def __init__(self, exportJobs, caseName):
         
-        self.perElementJobs = {}
-        for entry in exportJobs.get('*ensightPerElementVariable', []):
-            nPattern = entry.get('periodicalPattern', 1)
-            for i in range(nPattern):
-                setName = entry['set']
-                exportName = '{:}_{:}'.format(entry['exportName'], i)# if nPattern > 1 else entry['exportName']
-                
-                source = entry['source']
-                
-                if source == 'SDVUEL':
-                    perSetJob = PerSetJob ( setName,
-                                        sliceFromString( entry['data'][0][0], shift=entry.get('periodicalShift', 0) * i  ),
-                                        'SDV@1')
-                else:
-                    perSetJob = PerSetJob ( setName,
-                                        sliceFromString( entry['data'][0][0] ),
-                                        '{:}@{:}'.format(entry['source'], i+1 ))
-                
-                dimensions = entry.get('dimensions', (perSetJob.slice.stop - perSetJob.slice.start))
-                timeSet = entry.get('timeSet', 1)
-                
-                if exportName not in self.perElementJobs:
-                    self.perElementJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True)
-                    
-                self.perElementJobs[exportName].perSetJobs[setName] = perSetJob
-                
-        self.perNodeJobs = {}
-        for entry in exportJobs.get('*ensightPerNodeVariable', []):
-
-            setName = entry['set']
-            exportName = entry['exportName'] 
+        self.perElementJobs = self.collectPerElementJobs( exportJobs.get('*ensightPerElementVariable', []) )
+        self.perNodeJobs    = self.collectPerNodeJobs (  exportJobs.get('*ensightPerNodeVariable', []) )
+        self.ensightElementTypeMappings = { x['element'] : x['shape'] for x in exportJobs.get('*defineElementType', [])}
             
-            perSetJob = PerSetJob ( setName,
-                                    sliceFromString (entry['data'][0][0]),
-                                    entry['source'])
-            
-            dimensions = entry.get('dimensions', (perSetJob.slice.stop - perSetJob.slice.start))
-            timeSet = entry.get('timeSet', 1)
-            
-            if exportName not in self.perNodeJobs:
-                self.perNodeJobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True )
-                
-            self.perNodeJobs[exportName].perSetJobs[setName] = perSetJob
-            
-        for entry in exportJobs.get('*defineElementType', []):
-            self.ensightElementTypeMappings[entry['element']] = entry['shape']
-
-        self.csvPerElementSetJobs = exportJobs.get('*csvPerElementOutput', [])
-        for entry in self.csvPerElementSetJobs:
-            entry['exportName'] = entry.get('exportName', entry['source']) 
-            entry['csvData'] = []
+        self.allNodes = defaultdict(Node)
         
-        self.csvPerNodeJobs = exportJobs.get('*csvPerNodeOutput', [])
-        for entry in self.csvPerNodeJobs:
-            entry['exportName'] = entry.get('exportName', entry['source']) 
-            entry['csvData'] = []
-            entry['slice'] = sliceFromString (entry['data'][0][0])
-            if entry.get('math', False):
-                entry['math'] = mathFunctions.get(entry['math'], False)
-            
-        self.allNodes = OrderedDefaultDict(Node)
-        
-        self.allElements = OrderedDict()
+        self.allElements = {}
         self.nSets = {}
         self.elSets = {}
         
         self.currentState = 'model setup'
         self.currentIncrement = {}
         self.currentAbqElSet = None
-        self.currentSetName = 'mainPart'
+        self.currentSetName = 'ALL'
         self.currentIpt = 1
         self.nIncrements = 0
         self.timeHistory = []
         self.labelCrossReferences = {}
-
-        if exportJobs['*exportTimeHistory']:
-            self.exportTimeHistory = exportJobs['*exportTimeHistory'][0].get('exportName', 'timeHistory')
-        else:
-            self.exportTimeHistory = False
-        
         self.ensightCase = es.EnsightChunkWiseCase('.', caseName)
-        self.ensightCaseDiscardTimeMarks = False# exportJobs.get('discardTime', False)
+        self.ensightCaseDiscardTimeMarks = False
         
         self.knownRecords = { 
             1: ('Element header record', self.elementHeaderRecord),
             5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV')),
             11: ('S output', lambda x : self.handlePerElementOutput(x, 'S')),
             21: ('E output', lambda x : self.handlePerElementOutput(x, 'E')),
-            101: ('U output', self.handleUOutput),
-            104: ('RF output', self.handleRFOutput),
-            201: ('NT output', self.handleNTOutput),
+            101: ('U output', lambda x : self.handlePerNodeOutput(x, 'U')),
+            102: ('V output', lambda x : self.handlePerNodeOutput(x, 'V')),
+            103: ('A output', lambda x : self.handlePerNodeOutput(x, 'A')),
+            104: ('RF output', lambda x : self.handlePerNodeOutput(x, 'RF')),
+            201: ('NT output', lambda x : self.handlePerNodeOutput(x, 'NT')),
             1501: ('Surface definition header', self.surfaceDefHeader),
             1502: ('Surface facet',  lambda x : None),
             1900: ('element definition', self.addElement),
@@ -229,7 +162,6 @@ class ExportEngine:
             doc, action = self.knownRecords[recordType]     
             action(recordContent)
             return True
-        
         else:
             print("{:<20}{:>6}{:>10}{:>4}".format('unknown record:',recordType, ' of length', recordLength))
             return False
@@ -275,35 +207,6 @@ class ExportEngine:
                     if enSightVar:
                         self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
                         del enSightVar
-                    
-#            for entry in self.csvPerElementSetJobs:
-#                currentRow = []
-#                jobElSetPartName = entry['set']
-#                resultLocation = entry['source']
-##                resultIndices = entry['data'][0]
-##                nCount = entry.get('periodicalPattern', 1)
-##                nShift = entry.get('periodicalShift', 0)
-#                for elDict in self.currentIncrement['elementResults'][resultLocation][jobElSetPartName].values():
-##                    
-##                    for elResult in elDict.values():
-##                        for i in range(nCount):
-#                            currentRow.append( elResult[resultIndices + i*nShift].ravel() )
-#                entry['csvData'].append(currentRow)
-                            
-            for entry in self.csvPerNodeJobs:
-                if 'nodes' not in entry:
-                    # first run (=first increment)
-                    if 'node' in entry:
-                        entry['nodes'] = self.allNodes[entry['node']]
-                    elif 'nSet' in entry:
-                        entry['nodes'] = self.nSets[entry['nSet']].nodes
-                        
-                resultLocation = entry['source']
-                resultIndices = entry['slice']
-                currentRow = [self.currentIncrement['nodeResults'][resultLocation][node.label][resultIndices] for node in entry['nodes']]
-                if entry.get('math', False):
-                    currentRow = entry['math'](currentRow)
-                entry['csvData'].append(currentRow)
             
             if self.nIncrements % 10 == 0:
                 # intermediate saving ...
@@ -314,30 +217,13 @@ class ExportEngine:
         
     def finalize(self):
         self.ensightCase.finalize(discardTimeMarks = self.ensightCaseDiscardTimeMarks)
-        
-        for entry in self.csvPerElementSetJobs:
-            jobName = entry['exportName']
-            table = np.asarray(entry['csvData'] )
-            np.savetxt('{:}.csv'.format(jobName), table, fmt=entry.get('fmt', '%.6e'), )
-                
-        for entry in self.csvPerNodeJobs:
-            jobName = entry['exportName']
-            table = np.asarray(entry['csvData']  )
-            if table.ndim==3:
-                table = np.reshape(table, (len(table[:,0,0]), -1))
-            np.savetxt('{:}.csv'.format(jobName), table , fmt='%.6e') 
-                
-        if self.exportTimeHistory:
-            completeTimeHistory = np.asarray(self.timeHistory)
-            np.savetxt('{:}.csv'.format(self.exportTimeHistory), completeTimeHistory, fmt='%.6e', )
     
     def createEnsightGeometryFromModel(self):
-        
         partList = []
         partNumber = 1
         
-        mainPartSet = ElSet('mainPart', self.allElements.values())
-        self.elSets['mainPart'] = mainPartSet
+        ALLSet = ElSet('ALL', self.allElements.values())
+        self.elSets['ALL'] = ALLSet
         
         for elSet in self.elSets.values():
             
@@ -352,25 +238,107 @@ class ExportEngine:
             
         geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
+
+    def collectPerElementJobs(self, entries):
+        """ Collect all defined per element jobs in a dictionary
+        a job can consist of multiple Ensight variable definitions
+        with the same name defined on different element sets """
+        jobs = {}
+        for entry in entries:
+            source = entry['source']
+            setName = entry['set']
+            nPattern = entry.get('nIntegrationPoints', False )
+            for i in range(nPattern):
+                exportName = '{:}_{:}'.format(entry['exportName'], i)
+                if source == 'SDVUEL':
+                    nPatternInitialOffset = entry.get('integrationPointDataOffset', 0)
+                    nPatternDistance = entry.get('integrationPointDataDistance', 0)
+                    perSetJob = PerSetJob ( setName,
+                                        variableSource = 'SDV@1',
+                                        extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
+                                        extractionFunction = makeExtractionFunction ( entry['f(x)']) if 'f(x)' in entry else False,
+                                        offset = nPatternDistance * i + nPatternInitialOffset if nPattern else False,
+                                        )
+                else:
+                    perSetJob = PerSetJob ( setName,
+                                        variableSource = '{:}@{:}'.format(entry['source'], i+1 ),
+                                        extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
+                                        extractionFunction = makeExtractionFunction (entry['f(x)']) if 'f(x)' in entry else False,
+                                        offset=False,)
+                
+                dimensions = entry.get('dimensions', False)
+                timeSet = entry.get('timeSet', 1)
+                
+                if exportName not in jobs:
+                    jobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True)
+                    
+                jobs[exportName].perSetJobs[setName] = perSetJob
+
+        return jobs
+
+    def collectPerNodeJobs(self, entries):
+        """ Collect all defined per node jobs in a dictionary
+        a job can consist of multiple Ensight variable definitions
+        with the same name defined on different element sets """
+        jobs = {}
+        for entry in entries:
+
+            setName = entry['set']
+            exportName = entry['exportName'] 
+            
+            perSetJob = PerSetJob ( setName,
+                                    entry['source'],
+                                    extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
+                                    extractionFunction = makeExtractionFunction ( entry['f(x)']) if 'f(x)' in entry else False,
+                                    offset = False,
+                                    fillMissingValues = entry.get('fillMissingValues', False),
+                                    )
+            
+            dimensions = entry.get('dimensions', False)
+            timeSet = entry.get('timeSet', 1)
+            
+            if exportName not in jobs:
+                jobs[exportName] = ExportJob ( exportName, dimensions, timeSet, None, True )
+                
+            jobs[exportName].perSetJobs[setName] = perSetJob
+
+        return jobs 
     
     def createEnsightPerNodeVariableFromPerNodeJob(self, exportJob ):
         
         partsDict = {}
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
+
+            if type(perSetJob.fillMissingValues) == float:
+                results = np.full ( ( len ( elSet.getEnsightCompatibleReducedNodes()), exportJob.dimensions ) , perSetJob.fillMissingValues) 
+                for i, node in enumerate( elSet.getEnsightCompatibleReducedNodes().keys() ):
+                    if node in self.currentIncrement['nodeResults'][perSetJob.source]:
+                        vals = self.currentIncrement['nodeResults'][perSetJob.source][node]
+                        results[i, 0: vals.shape[0]] = vals
             
-            try:
-                nodalVarTable = np.asarray([ self.currentIncrement['nodeResults']
+            else:
+                results = np.asarray([ self.currentIncrement['nodeResults']
                                                                     [perSetJob.source]
                                                                     [node]
-                                                                    [perSetJob.slice] for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
-            except:
-                continue
-    
-            partsDict[elSet.ensightPartID] =  ('coordinates', nodalVarTable)
+                                                                     for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
+
+            if perSetJob.extractionFunction:
+                results = np.apply_along_axis( perSetJob.extractionFunction, axis = 1, arr = results[:, perSetJob.offset :]  )
+                results = np.reshape ( results, ( results.shape[0], -1))
+
+            if perSetJob.extractionSlice:
+                results = results[:, perSetJob.extractionSlice]
+
+            variableLength = results.shape[1]
+
+            partsDict[elSet.ensightPartID] =  ('coordinates', results)
+
+        # determine the dimension of the variable .. either it is specified or the length of the variable is taken
+        variableDimension = exportJob.dimensions or variableLength
             
         if partsDict or  exportJob.writeEmptyTimeSteps:
-            return  es.EnsightPerNodeVariable(exportJob.exportName, exportJob.dimensions, partsDict)
+            return  es.EnsightPerNodeVariable(exportJob.exportName, variableDimension, partsDict)
         else:
             return None
         
@@ -381,20 +349,31 @@ class ExportEngine:
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
             resultLocation = perSetJob.source
-            resultSlice =   perSetJob.slice
-            
-            if setName not in self.currentIncrement['elementResults'][resultLocation]:
-                continue
             
             incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][setName]
             incrementVariableResultsArrays = {}
             for ensElType, elDict in incrementVariableResults.items():
-                incrementVariableResultsArrays[ensElType] = np.asarray([ elDict[el.label][resultSlice] for el in elSet.elements[ensElType] ])
+
+                results = np.asarray([ elDict[el.label] for el in elSet.elements[ensElType] ])
+                
+                if perSetJob.offset:
+                    results = results[:, perSetJob.offset :]
+
+                if perSetJob.extractionFunction:
+                    results = np.apply_along_axis( perSetJob.extractionFunction, axis = 1, arr = results )
+                    results = np.reshape ( results, ( results.shape[0], -1))
+
+                if perSetJob.extractionSlice:
+                    results = results[:, perSetJob.extractionSlice]
+
+                incrementVariableResultsArrays[ensElType] = results 
+                variableLength = results.shape[1]
             
             partsDict[elSet.ensightPartID] = incrementVariableResultsArrays 
             
         if partsDict or  exportJob.writeEmptyTimeSteps :
-            return es.EnsightPerElementVariable(exportJob.exportName, exportJob.dimensions, partsDict, )
+            variableDimension = exportJob.dimensions or variableLength
+            return es.EnsightPerElementVariable(exportJob.exportName, variableDimension, partsDict, )
         else:
             return None
         
@@ -416,7 +395,7 @@ class ExportEngine:
             setName = filStrippedString(recordContent[1])
             
         if not setName:
-            setName = 'mainPart'
+            setName = 'ALL'
         elif setName in self.labelCrossReferences:
             setName = self.labelCrossReferences[setName]
             
@@ -435,7 +414,13 @@ class ExportEngine:
         currentElementNum = self.currentElementNum
         
         location += '@'+str(self.currentIpt)
-        
+
+        if location not in currentIncrement['elementResults']:
+            currentIncrement['elementResults'][location] = {}
+
+        if currentSetName not in currentIncrement['elementResults'][location]:
+            currentIncrement['elementResults'][location][currentSetName] = {}
+
         if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
             currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  {}
         
@@ -443,22 +428,16 @@ class ExportEngine:
         if currentElementNum not in targetLocation:
             targetLocation[currentElementNum] = res
         else:
+            # continuation of an existing record
             targetLocation[currentElementNum] = np.concatenate( (targetLocation[currentElementNum], res))
-    
-    def handleUOutput(self, rec):
-        node = filInt(rec[0])[0]
-        vals = filDouble(rec[1:3])
-        self.currentIncrement['nodeResults']['U'][node] = vals
 
-    def handleRFOutput(self, rec):
+    def handlePerNodeOutput(self, rec, location):
         node = filInt(rec[0])[0]
         vals = filDouble(rec[1:])
-        self.currentIncrement['nodeResults']['RF'][node] = vals
 
-    def handleNTOutput(self, rec):
-        node = filInt(rec[0])[0]
-        vals = filDouble(rec[1])
-        self.currentIncrement['nodeResults']['NT'][node] = vals
+        if location not in self.currentIncrement['nodeResults']:
+            self.currentIncrement['nodeResults'][location] = {}
+        self.currentIncrement['nodeResults'][location][node] = vals
     
     def addNode(self, recordContent):
         label = filInt(recordContent[0])[0]   
@@ -477,7 +456,7 @@ class ExportEngine:
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
         if not setName:
-            setName = 'mainPart'
+            setName = 'ALL'
         elif setName in  self.labelCrossReferences:
             setName = self.labelCrossReferences[setName]
         self.currentSetName = setName
@@ -493,7 +472,7 @@ class ExportEngine:
         setName = filStrippedString(recordContent[0])
         
         if not setName:
-            setName = 'defaultNodeSet'
+            setName = 'ALL'
         elif setName in self.labelCrossReferences:
             setName = self.labelCrossReferences[setName]
             
@@ -519,8 +498,8 @@ class ExportEngine:
         currentIncrement['tStep'] = tStep
         currentIncrement['nStep'] = nStep
         currentIncrement['timeInc'] = timeInc
-        currentIncrement['elementResults'] = defaultdict(lambda: defaultdict(lambda: dict() )) 
-        currentIncrement['nodeResults'] = defaultdict(OrderedDict)
+        currentIncrement['elementResults'] = {} 
+        currentIncrement['nodeResults'] = {} 
         
     def addLabelCrossReference(self, recordContent):
         r = recordContent

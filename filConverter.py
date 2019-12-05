@@ -1,12 +1,18 @@
+"""
+Copyright (C) 2019 Matthias Neuner <matthias.neuner@uibk.ac.at>
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""
+
 import sys
 import os
 import numpy as np
 import math
-
 import utils.exportEngine as eE
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
-
 
 wordsize = 8  
 chunkSize = 513* wordsize
@@ -52,7 +58,6 @@ if __name__ == "__main__":
     lockFile =  fn.split('.')[0]+'.lck' 
     print("{:<20}{:>20}".format('opening file',fn))
     print('*'*48)
-
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
 
@@ -68,7 +73,6 @@ if __name__ == "__main__":
     parseFile = True
     while parseFile:
         try:
-
             fileSize = getCurrentFileSize(fn,)
             
             if fileIdx < fileSize:
@@ -86,7 +90,6 @@ if __name__ == "__main__":
                             fileSize = getCurrentFileSize(fn,)
                             idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
                             words = getWords(fn, fileIdx, idxEnd)
-
                             continue
                         else:
                             parseFile = False
