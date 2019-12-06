@@ -1,6 +1,6 @@
-** we have UELw, which has 4 nodes,
+** We have a UEL, which has 4 nodes with displacement and nonlocal damage DOFs,
 *defineElementType, element=U001, shape=quad4
-** .. and a standard Abaqus CPS, which also has for nodes
+** .. and a standard Abaqus CPS4, which also has also 4 nodes
 *defineElementType, element=CPS4, shape=quad4
 **
 ** NODAL VARIABLES
