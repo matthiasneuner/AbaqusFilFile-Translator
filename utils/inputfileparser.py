@@ -19,7 +19,7 @@ dTypes = {int : "integer",
     
 typeMappings = {    '*defineElementType' :                  ('assign an ensight Shape to an Abaqus Element',
                         {'element' :                        (str, 'Abaqus (User) Element'),
-                         'shape' :                          (str, 'Ensight Shape'), }),
+                            'shape' :                       (str, 'Ensight Shape, can be any of: point bar2 bar3 tria3 tria6 quad4 quad8 tetra4 tetra10 pyramid5 pyramid13 penta6 penta15 hexa8 hexa20 nsided nfaced '), }),
 
                     '*ensightCaseOptions' :                 ('modify Ensight export options',
                         {'discardTime' :                    (str, 'discard Time values and replace by enumeration of time steps'), }),
@@ -41,7 +41,7 @@ typeMappings = {    '*defineElementType' :                  ('assign an ensight 
                          'source':                          (str, 'Abaqus variable identifier'),
                          'dimensions':                      (int, "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled"),
                          'nIntegrationPoints':              (int, "(optional), define a periodical pattern for a repeatet extraction (e.g. for results @ GaussPts)"),
-                         'integrationPointDataDistance':    (int, "(optional), define a periodical pattern: initial constant offset )"),
+                         'integrationPointDataDistance':    (int, "(optional), define a periodical pattern: initial constant offset"),
                          'integrationPointDataOffset':      (int, "(optional), define a periodical pattern: offset between extraction points"),
                          'timeSet':                         (int, "(optional), define a timeset, for 'different' timelines"),
                          'values':                          (str, "(optional), define a index/slice to extract a subarray from the total result array (per Element)"),
@@ -106,7 +106,7 @@ def parseInputFile(fileName, currentKeyword = None, existingFileDict = None):
 def printKeywords():
     """ print the input file language set"""
     kwString = "    {:}    "
-    kwDataString = "        {:30}{:30}"    
+    kwDataString = "        {:30}{:14}"    
     
     wrapper = textwrap.TextWrapper(width=120,replace_whitespace=False)
     for kw, (kwDoc,optiondict) in sorted(typeMappings.items()):
@@ -122,13 +122,3 @@ def printKeywords():
             wrapper.subsequent_indent = " "*len(wrapper.initial_indent)
             print(wrapper.fill(description))
         print("\n")
-    
-
-def mergeNumpyDataLines(multiLineData):
-    flattenedMatProps = [p for row in multiLineData for p in row]
-    return np.array(flattenedMatProps, dtype=np.float)
-    
-def mergeDictDataLines(multiLineData):
-    d = {key:val for (key, val) in multiLineData}
-    return d
-    

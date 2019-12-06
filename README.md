@@ -9,19 +9,25 @@ In particular, results by simulations using UELs (user defined elements) can
 be postprocessed easily! No workaround using dummy elements in Abaqus/CAE is required 
 anymore.
 
+Requires Python 3.6+ (depends on dictionary with ordered storage) and Numpy.
 
 Features
 ===========================
-*  Custom conversion  of .fil files to Ensight .case files using export definition files
-*  Easy to use export definition file syntax
+*  Custom conversion  of .fil files to Ensight .case files using export definition files.
+*  Easy to use export definition file syntax.
+*  Easy to extend! Written in Python, and currently unsupported .fil records can be added easily.
+*  Conversion during Simulation! An ongoing Abaqus simulation is recognized, and the translator waits until new data is written by Abaqus.
 
 Usage
 ===========================
 
-    python filConverter.py <file>.fil exportDef.inp
+    python filConverter.py file.fil exportDefinition.inp
     
 Take a look at the example in the example directory.
 
+Attention: Abaqus mangles the names of elsets and nodesets with part and assembly designations, and converts everything to uppercase. 
+In order to identify your desired sets in the .fil file, just convert the .fil file with no exports defined (dry run) using the translator.
+The translator will identify every existing set in the .fil file and print them in the console with the correct name!
 
 Input keywords and options
 ===========================
@@ -37,76 +43,47 @@ available keywords:
 
     *defineElementType    assign an ensight Shape to an Abaqus Element
 
-        element                       string                        Abaqus (User) Element
-        shape                         string                        Ensight Shape
+        element                       string        Abaqus (User) Element
+        shape                         string        Ensight Shape, can be any of: point bar2 bar3 tria3 tria6 quad4
+                                                    quad8 tetra4 tetra10 pyramid5 pyramid13 penta6 penta15 hexa8 hexa20
+                                                    nsided nfaced
 
 
     *ensightCaseOptions    modify Ensight export options
 
-        discardTime                   string                        discard Time values and replace by enumeration of
-                                                                    time steps
+        discardTime                   string        discard Time values and replace by enumeration of time steps
 
 
     *ensightPerElementVariable    define an Ensight per element variable for export
 
-        dimensions                    integer                       (optional), 1/3/6/9 for
-                                                                    scalar/vector/tensor/tensor9; missing components
-                                                                    will be zero filled
-        exportName                    string                        export name of the variable
-        f(x)                          string                        (optional), apply a mathematical/array expression on
-                                                                    the result array (per Element, slow!)
-        integrationPointDataDistance  integer                       (optional), define a periodical pattern: initial
-                                                                    constant offset )
-        integrationPointDataOffset    integer                       (optional), define a periodical pattern: offset
-                                                                    between extraction points
-        nIntegrationPoints            integer                       (optional), define a periodical pattern for a
-                                                                    repeatet extraction (e.g. for results @ GaussPts)
-        set                           string                        Abaqus element set
-        source                        string                        Abaqus variable identifier
-        timeSet                       integer                       (optional), define a timeset, for 'different'
-                                                                    timelines
-        values                        string                        (optional), define a index/slice to extract a
-                                                                    subarray from the total result array (per Element)
+        dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing
+                                                    components will be zero filled
+        exportName                    string        export name of the variable
+        f(x)                          string        (optional), apply a mathematical/array expression on the result
+                                                    array (per Element, slow!)
+        integrationPointDataDistance  integer       (optional), define a periodical pattern: initial constant offset
+        integrationPointDataOffset    integer       (optional), define a periodical pattern: offset between extraction
+                                                    points
+        nIntegrationPoints            integer       (optional), define a periodical pattern for a repeatet extraction
+                                                    (e.g. for results @ GaussPts)
+        set                           string        Abaqus element set
+        source                        string        Abaqus variable identifier
+        timeSet                       integer       (optional), define a timeset, for 'different' timelines
+        values                        string        (optional), define a index/slice to extract a subarray from the
+                                                    total result array (per Element)
 
 
     *ensightPerNodeVariable    define an Ensight per node variable for export
 
-        dimensions                    integer                       (optional), 1/3/6/9 for
-                                                                    scalar/vector/tensor/tensor9; missing components
-                                                                    will be zero filled
-        exportName                    string                        export name of the variable
-        f(x)                          string                        (optional), apply a mathematical/array expression on
-                                                                    the result array (per Element, slow!)
-        fillMissingValues             float                         (optional), fill missing nodal values with a
-                                                                    constant values, requires specified dimensions
-                                                                    (slow!)
-        set                           string                        Abaqus element set
-        source                        string                        Abaqus variable identifier
-        timeSet                       integer                       (optional), define a timeset, for 'different'
-                                                                    timelines
-        values                        string                        (optional), define a index/slice to extract a
-                                                                    subarray from the total result array (per Element)
-
-
-    *include    (optional) load extra .inp file (fragment), use relative path to current .inp
-
-        input                         string                        filename
-
-element type can be any of:
-point g_point
-bar2 g_bar2
-bar3 g_bar3
-tria3 g_tria3
-tria6 g_tria6
-quad4 g_quad4
-quad8 g_quad8
-tetra4 g_tetra4
-tetra10 g_tetra10
-pyramid5 g_pyramid5
-pyramid13 g_pyramid13
-penta6 g_penta6
-penta15 g_penta15
-hexa8 g_hexa8
-hexa20 g_hexa20
-nsided g_nsided
-nfaced g_nfaced
+        dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing
+                                                    components will be zero filled
+        exportName                    string        export name of the variable
+        f(x)                          string        (optional), apply a mathematical/array expression on the result
+                                                    array (per Element, slow!)
+        fillMissingValues             float         (optional), fill missing nodal values with a constant values,
+                                                    requires specified dimensions (slow!)
+        set                           string        Abaqus element set
+        source                        string        Abaqus variable identifier
+        timeSet                       integer       (optional), define a timeset, for 'different' timelines
+        values                        string        (optional), define a index/slice to extract a subarray from the
+                                                    total result array (per Element)

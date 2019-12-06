@@ -7,6 +7,7 @@ This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
+
 import numpy as np
 import os
 
@@ -46,11 +47,6 @@ class EnsightUnstructuredPart:
         self.partNumber = partNumber 
         
     def writeToFile(self, binaryFileHandle, printNodeLabels=True, printElementLabels=True):
-        if len(self.nodes.shape) < 2:
-            pass
-        elif self.nodes.shape[1] < 3:
-            print('Ensight Unstructered Part: Extending node coordinate array to 3 dims')
-            self.nodes = np.hstack( (self.nodes, np.zeros((self.nodes.shape[0],3-self.nodes.shape[1])) ))
         nNodes = self.nodes.shape[0]
         f = binaryFileHandle  #shortcut to functions
         

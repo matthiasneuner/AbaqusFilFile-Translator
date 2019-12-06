@@ -24,9 +24,11 @@ def filFlag(word):
     return word[0:4].view('<i')[0]
 
 def makeExtractionFunction(expression, symbol='x'):
+    """ make a simple f(x) expression from string"""
     return lambda x : eval ( expression, globals(), { symbol : x} )
 
 def sliceFromString(string, shift=0):
+    """ generate a slice from a string, which can represent a slice or an index"""
     if ':' in string:
         a, b = string.split(':')
         return slice ( int(a) + shift, int(b)  +shift )
@@ -69,14 +71,11 @@ class ElSet:
     
     def getEnsightCompatibleReducedNodeCoords(self,):
         self._reducedNodeCoords3D = np.asarray([node.coords for node in self.getEnsightCompatibleReducedNodes().values()])
-        if self._reducedNodeCoords3D.shape[1] < 3:
-            # zero fill to 3D
-            self._reducedNodeCoords3D = np.pad ( self._reducedNodeCoords3D, (0, 3 - self._reducedNodeCoords3D.shape[1]), mode='constant')
         return self._reducedNodeCoords3D
     
     def getEnsightCompatibleElementNodeIndices(self,):
         self._reducedNodeIndices = {node : i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys()) }
-        self._reducedElements = {}
+        self._reducedElements = dict()
         for eShape, elements in self.elements.items():
             self._reducedElements[eShape] = [ (e.label , [ self._reducedNodeIndices[n.label] for n in e.nodes] ) for e in elements  ]
         return self._reducedElements
@@ -226,7 +225,7 @@ class ExportEngine:
         self.elSets['ALL'] = ALLSet
         
         for elSet in self.elSets.values():
-            
+
             elSetPart = es.EnsightUnstructuredPart(elSet.name, 
                                                    partNumber, 
                                                    elSet.getEnsightCompatibleElementNodeIndices(), 
@@ -361,7 +360,7 @@ class ExportEngine:
 
                 if perSetJob.extractionFunction:
                     results = np.apply_along_axis( perSetJob.extractionFunction, axis = 1, arr = results )
-                    results = np.reshape ( results, ( results.shape[0], -1))
+                    results = np.reshape ( results, ( results.shape[0], -1)) #ensure that dimensions are kept
 
                 if perSetJob.extractionSlice:
                     results = results[:, perSetJob.extractionSlice]
@@ -442,8 +441,14 @@ class ExportEngine:
     def addNode(self, recordContent):
         label = filInt(recordContent[0])[0]   
         coords = filDouble(recordContent[1:4])
+
+        #make coords 3D, always!
+        if ( coords.shape[0] < 3 ):
+            coords = np.pad(coords, (0, 3-coords.shape[0]), mode='constant')
+
         node = self.allNodes[label]
         node.label = label
+
         node.coords = coords
     
     def addElement(self, recordContent):
