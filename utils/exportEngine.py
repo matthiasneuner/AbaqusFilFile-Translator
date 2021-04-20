@@ -34,6 +34,9 @@ def sliceFromString(string, shift=0):
         return slice ( int(a) + shift, int(b)  +shift )
     else:
         return slice(int(string) + shift, int(string)+1 +shift )
+
+def RecursiveDefaultDict ():
+    return defaultdict(RecursiveDefaultDict)
     
 class Node:
     def __init__(self, label=None, coords=None):
@@ -97,18 +100,23 @@ class ExportJob:
         self.writeEmptyTimeSteps = writeEmptyTimeSteps
     
 class PerSetJob:
-    def __init__(self, setName, variableSource, extractionSlice=False, extractionFunction=False, offset=False, fillMissingValues=False):
+    def __init__(self, setName, result, location = None, which=None, extractionSlice=False, extractionFunction=False, offset=False, fillMissingValues=False):
         self.setName = setName
         self.extractionSlice = extractionSlice
         self.extractionFunction = extractionFunction
         self.offset = offset
-        self.source = variableSource
+        self.result = result 
+        self.location = location 
+        self.which = which
         self.fillMissingValues = fillMissingValues
 
 class ExportEngine:
                         
     def __init__(self, exportJobs, caseName):
         
+        self.uelSdvToQpJobs = self.collectUelSDVToQpJobs ( exportJobs.get('*UELSDVToQuadraturePoints', []) )
+        self.qpAverageJobs = self.collectQpAverageJobs( exportJobs.get('*computeAverageOverQuadraturePoints', []) )
+
         self.perElementJobs = self.collectPerElementJobs( exportJobs.get('*ensightPerElementVariable', []) )
         self.perNodeJobs    = self.collectPerNodeJobs (  exportJobs.get('*ensightPerNodeVariable', []) )
         self.ensightElementTypeMappings = { x['element'] : x['shape'] for x in exportJobs.get('*defineElementType', [])}
@@ -199,9 +207,15 @@ class ExportEngine:
                     if enSightVar:
                         self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
                         del enSightVar
+
+            # operate on elemetal results (e.g. compute average over quadraturePoint )
+            for uelSdvToQpJob in self.uelSdvToQpJobs:
+                self.computeUelSdvToQp( uelSdvToQpJob )
+
+            for qpAverageJob in self.qpAverageJobs :
+                self.computeQpAverage( qpAverageJob )
                                         
             for exportJob in self.perElementJobs.values():
-                
                     enSightVar = self.createEnsightPerElementVariableFromPerElementJob(exportJob)
                     if enSightVar:
                         self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
@@ -212,7 +226,7 @@ class ExportEngine:
                 self.ensightCase.finalize(discardTimeMarks = self.ensightCaseDiscardTimeMarks, closeFileHandles=False)
                 
             del self.currentIncrement
-            self.currentIncrement = {}
+            self.currentIncrement = dict()
         
     def finalize(self):
         self.ensightCase.finalize(discardTimeMarks = self.ensightCaseDiscardTimeMarks)
@@ -238,32 +252,80 @@ class ExportEngine:
         geometry = es.EnsightGeometry('geometry', '-', '-', partList, 'given', 'given')
         return geometry
 
+    def collectQpAverageJobs (self, entries):
+        jobs = []
+        for entry in entries:
+            jobs.append  ( entry )
+        return jobs
+
+    def computeQpAverage ( self, job ):
+        result = job['result']
+        setName = job['set']
+
+        setResults = self.currentIncrement['elementResults'][result][setName]
+
+        for elTypeResults in setResults.values():
+            for elResults in elTypeResults.values():
+                elResults['computed']['average'] = \
+                        np.mean ( [qpRes for qpRes in elResults['qps'].values()], axis=0)
+
+    def collectUelSDVToQpJobs(self, entries):
+        jobs = []
+
+        for entry in entries:
+            offset = entry['qpInitialOffset']
+            nQps = entry['qpCount']
+            qpDistance = entry['qpDistance']
+            entry['qpSlices'] = [ slice(offset + i * qpDistance, offset + ( i + 1 ) * qpDistance ) for i in range(nQps) ] 
+
+            jobs.append  ( entry )
+
+        return jobs
+
+    def computeUelSdvToQp ( self, job ):
+
+        setName = job['set']
+        destination = job['destination']
+        qpSlices = job['qpSlices']
+
+        source = self.currentIncrement['elementResults'] [ 'SDV' ] [ setName ]
+
+        destination = self.currentIncrement['elementResults'][ job['destination'] ] [setName]
+
+        for ensElType, elements in source.items():
+
+            for elLabel, uelResults in elements.items():
+                uelSdv = uelResults['qps'][1]
+                qpsData =  [ uelSdv[ qpSlice] for qpSlice in qpSlices  ] 
+
+                destination[ensElType][elLabel]['qps'] = { (i+1) : qpData for i, qpData in enumerate(qpsData) } 
+
     def collectPerElementJobs(self, entries):
         """ Collect all defined per element jobs in a dictionary
         a job can consist of multiple Ensight variable definitions
         with the same name defined on different element sets """
         jobs = {}
         for entry in entries:
-            source = entry['source']
+            result = entry['result']
             setName = entry['set']
-            nPattern = entry.get('nIntegrationPoints', False )
-            for i in range(nPattern):
-                exportName = '{:}_{:}'.format(entry['exportName'], i)
-                if source == 'SDVUEL':
-                    nPatternInitialOffset = entry.get('integrationPointDataOffset', 0)
-                    nPatternDistance = entry.get('integrationPointDataDistance', 0)
-                    perSetJob = PerSetJob ( setName,
-                                        variableSource = 'SDV@1',
-                                        extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
-                                        extractionFunction = makeExtractionFunction ( entry['f(x)']) if 'f(x)' in entry else False,
-                                        offset = nPatternDistance * i + nPatternInitialOffset if nPattern else False,
-                                        )
-                else:
-                    perSetJob = PerSetJob ( setName,
-                                        variableSource = '{:}@{:}'.format(entry['source'], i+1 ),
-                                        extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
-                                        extractionFunction = makeExtractionFunction (entry['f(x)']) if 'f(x)' in entry else False,
-                                        offset=False,)
+            loc = entry['location']
+
+            which = entry['which']
+            which = which.split(';')
+
+            # special treatment for qp results, since they are stored in the db using int identifiers
+            if loc == 'qps':
+                which = [ int(w) for w in which ]
+
+            for w in which:
+                exportName = '{:}_{:}'.format(entry['exportName'], w)
+                perSetJob = PerSetJob ( setName,
+                                    result = result,
+                                    location = loc,
+                                    which = w,
+                                    extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
+                                    extractionFunction = makeExtractionFunction (entry['f(x)']) if 'f(x)' in entry else False,
+                                    offset=False,)
                 
                 dimensions = entry.get('dimensions', False)
                 timeSet = entry.get('timeSet', 1)
@@ -286,7 +348,9 @@ class ExportEngine:
             exportName = entry['exportName'] 
             
             perSetJob = PerSetJob ( setName,
-                                    entry['source'],
+                                    result = entry['result'],
+                                    location=None,
+                                    which=None,
                                     extractionSlice = sliceFromString ( entry['values']) if 'values' in entry else False,
                                     extractionFunction = makeExtractionFunction ( entry['f(x)']) if 'f(x)' in entry else False,
                                     offset = False,
@@ -312,13 +376,13 @@ class ExportEngine:
             if type(perSetJob.fillMissingValues) == float:
                 results = np.full ( ( len ( elSet.getEnsightCompatibleReducedNodes()), exportJob.dimensions ) , perSetJob.fillMissingValues) 
                 for i, node in enumerate( elSet.getEnsightCompatibleReducedNodes().keys() ):
-                    if node in self.currentIncrement['nodeResults'][perSetJob.source]:
-                        vals = self.currentIncrement['nodeResults'][perSetJob.source][node]
+                    if node in self.currentIncrement['nodeResults'][perSetJob.result]:
+                        vals = self.currentIncrement['nodeResults'][perSetJob.result][node]
                         results[i, 0: vals.shape[0]] = vals
             
             else:
                 results = np.asarray([ self.currentIncrement['nodeResults']
-                                                                    [perSetJob.source]
+                                                                    [perSetJob.result]
                                                                     [node]
                                                                      for node in elSet.getEnsightCompatibleReducedNodes().keys() ] )
 
@@ -347,13 +411,15 @@ class ExportEngine:
         partsDict = {}
         for setName, perSetJob in exportJob.perSetJobs.items():
             elSet = self.elSets[setName]
-            resultLocation = perSetJob.source
+            result = perSetJob.result
+            location = perSetJob.location
+            which = perSetJob.which
             
-            incrementVariableResults = self.currentIncrement['elementResults'][resultLocation][setName]
+            incrementVariableResults = self.currentIncrement['elementResults'][result][setName]
             incrementVariableResultsArrays = {}
             for ensElType, elDict in incrementVariableResults.items():
 
-                results = np.asarray([ elDict[el.label] for el in elSet.elements[ensElType] ])
+                results = np.asarray([ elDict[el.label][location][which] for el in elSet.elements[ensElType] ])
                 
                 if perSetJob.offset:
                     results = results[:, perSetJob.offset :]
@@ -395,6 +461,7 @@ class ExportEngine:
             
         if not setName:
             setName = 'ALL'
+
         elif setName in self.labelCrossReferences:
             setName = self.labelCrossReferences[setName]
             
@@ -405,33 +472,24 @@ class ExportEngine:
         self.currentElementNum = elNum 
         self.currentIpt = filFlag(rec[1])
            
-    def handlePerElementOutput(self, rec, location):
+    def handlePerElementOutput(self, rec, result):
         res = filDouble(rec)
         currentIncrement = self.currentIncrement    
         currentSetName = self.currentSetName
         currentEnsightElementType =self.currentEnsightElementType
+        qp = self.currentIpt
         currentElementNum = self.currentElementNum
-        
-        location += '@'+str(self.currentIpt)
 
-        if location not in currentIncrement['elementResults']:
-            currentIncrement['elementResults'][location] = {}
+        targetLocation = currentIncrement['elementResults'][result][currentSetName][currentEnsightElementType]
 
-        if currentSetName not in currentIncrement['elementResults'][location]:
-            currentIncrement['elementResults'][location][currentSetName] = {}
-
-        if currentEnsightElementType not in currentIncrement['elementResults'][location][currentSetName]:
-            currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType] =  {}
-        
-        targetLocation = currentIncrement['elementResults'][location][currentSetName][currentEnsightElementType]
-        if currentElementNum not in targetLocation:
-            targetLocation[currentElementNum] = res
+        if qp not in targetLocation[currentElementNum]['qps']:
+            targetLocation[currentElementNum]['qps'][qp] = res
         else:
             # continuation of an existing record
-            targetLocation[currentElementNum] = np.concatenate( (targetLocation[currentElementNum], res))
+            targetLocation[currentElementNum]['qps'][qp] = np.concatenate( (targetLocation[currentElementNum]['qps'][qp], res))
 
     def handlePerNodeOutput(self, rec, location):
-        node = filInt(rec[0])[0]
+        node = filInt(rec[0])[0] 
         vals = filDouble(rec[1:])
 
         if location not in self.currentIncrement['nodeResults']:
@@ -503,8 +561,8 @@ class ExportEngine:
         currentIncrement['tStep'] = tStep
         currentIncrement['nStep'] = nStep
         currentIncrement['timeInc'] = timeInc
-        currentIncrement['elementResults'] = {} 
-        currentIncrement['nodeResults'] = {} 
+        currentIncrement['elementResults'] = RecursiveDefaultDict()
+        currentIncrement['nodeResults'] = RecursiveDefaultDict()
         
     def addLabelCrossReference(self, recordContent):
         r = recordContent

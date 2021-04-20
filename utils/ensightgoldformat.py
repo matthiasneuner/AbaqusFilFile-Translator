@@ -18,20 +18,16 @@ def writeCInt(f, ndarray):
 def writeC80(f, string):
     np.asarray(string, dtype='a80').tofile(f)
 
-variableTypes = {"scalar" : 1,
-                 "vector" : 3,
-                 "tensor": 9}
-
 ensightPerNodeVariableTypes = {
                                1 : 'scalar per node',
                                3 : 'vector per node',
-                               6 : 'tensor per node',
+                               6 : 'tensor6 per node',
                                9 : 'tensor9 per node'}  
                                    
 ensightPerElementVariableTypes = {
                                   1 : 'scalar per element',
                                   3 : 'vector per element',
-                                  6 : 'tensor per element',
+                                  6 : 'tensor6 per element',
                                   9 : 'tensor9 per element'}
                  
 class EnsightUnstructuredPart:
@@ -171,7 +167,7 @@ class EnsightChunkWiseCase:
     def __init__(self, directory, caseName, writeTransientSingleFiles = True):
         self.directory = directory
         self.caseName = caseName
-        self.caseFileNamePrefix = caseName
+        self.caseFileNamePrefix = caseName + "_"
         self.writeTransientSingleFiles = writeTransientSingleFiles
         self.timeAndFileSets = {}
         self.geometryTrends = {}
@@ -243,7 +239,7 @@ class EnsightChunkWiseCase:
             for f in self.fileHandles.values():
                 f.close()
         
-        caseFName = self.caseFileNamePrefix+'.case'
+        caseFName = self.caseName + '.case'
         with open(caseFName ,mode='w') as cf:
             cf.write("FORMAT\n")
             cf.write("type: ensight gold\n")

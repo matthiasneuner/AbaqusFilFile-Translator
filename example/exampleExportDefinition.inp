@@ -6,14 +6,14 @@
 ** NODAL VARIABLES
 **
 ** Ensight expects that vectors have 3 components, but Abaqus writes only 2 for 2D. So we zero fill the z direction, by specifying dimensions=3
-*ensightPerNodeVariable, set=ALL, exportName=nodeDisplacements, source=U, dimensions=3
+*ensightPerNodeVariable, set=ALL, exportName=nodeDisplacements, result=U, dimensions=3
 
 ** reaction forces are written only at the boundary, so we need to specificy that all missing values at interior nodes are zeroed
-*ensightPerNodeVariable, set=ALL, exportName=nodeReactionForces, source=RF, dimensions=3, fillMissingValues=0.0
+*ensightPerNodeVariable, set=ALL, exportName=nodeReactionForces, result=RF, dimensions=3, fillMissingValues=0.0
 **
 
 ** nonlocal damage is a scalar, so no problem here
-*ensightPerNodeVariable, set=SECCONC, exportName=nodeAlphaDNonLocal, source=NT, 
+*ensightPerNodeVariable, set=SECCONC, exportName=nodeAlphaDNonLocal, result=NT, 
 **
 **
 ** ELEMENTAL VARIABLES
@@ -23,22 +23,32 @@
 ** of course, this is dependent on the UEL!
 **
 ** assumed layout of the SDV vector per UEL:
-** [ <- offset-> [ data of IP1] <- integrationPointDataDistance -> [ data of IP2] <- integrationPointDataDistance -> .. ] 
+** [ <- offset-> [ data of IP1] <- qpDistance -> [ data of IP2] <- qpDistance -> .. ] 
+
+*UELSDVToQuadraturePoints, set=SECCONC, destination=ConcUelSDVs, qpCount=4, qpInitialOffset=0, qpDistance=18
+
+** furthermore, we may want to compute the average over all SDVs
+*computeAverageOverQuadraturePoints, set=SECCONC, result=ConcUelSDVs
 **
 ** Scalar Variables are accessed in the SDV field by means of their index ....
-*ensightPerElementVariable, set=SECCONC, exportName=alphaP, source=SDVUEL, nIntegrationPoints=4, integrationPointDataDistance=18, integrationPointDataOffset=0, values=0
-*ensightPerElementVariable, set=SECCONC, exportName=alphaD, source=SDVUEL, nIntegrationPoints=4, integrationPointDataDistance=18, integrationPointDataOffset=0, values=2
-*ensightPerElementVariable, set=SECCONC, exportName=omega,  source=SDVUEL, nIntegrationPoints=4, integrationPointDataDistance=18, integrationPointDataOffset=0, values=4
-** 
+*ensightPerElementVariable, set=SECCONC, exportName=alphaP, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=0
+*ensightPerElementVariable, set=SECCONC, exportName=alphaP, result=ConcUelSDVs, location=computed, which=average,  values=0
+*ensightPerElementVariable, set=SECCONC, exportName=alphaD, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=2
+*ensightPerElementVariable, set=SECCONC, exportName=alphaD, result=ConcUelSDVs, location=computed, which=average,  values=2
+*ensightPerElementVariable, set=SECCONC, exportName=omega, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=4
+*ensightPerElementVariable, set=SECCONC, exportName=omega, result=ConcUelSDVs, location=computed, which=average,  values=4
+
 ** ... and tensorial variables by means of a python slice!
-*ensightPerElementVariable, set=SECCONC, exportName=stress, source=SDVUEL, nIntegrationPoints=4, integrationPointDataDistance=18, integrationPointDataOffset=0, values=6:12
-*ensightPerElementVariable, set=SECCONC, exportName=strain, source=SDVUEL, nIntegrationPoints=4, integrationPointDataDistance=18, integrationPointDataOffset=0, values=12:18
+*ensightPerElementVariable, set=SECCONC, exportName=stress, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=6:12
+*ensightPerElementVariable, set=SECCONC, exportName=stress, result=ConcUelSDVs, location=computed, which=average,  values=6:12
+*ensightPerElementVariable, set=SECCONC, exportName=strain, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=12:18
+*ensightPerElementVariable, set=SECCONC, exportName=strain, result=ConcUelSDVs, location=computed, which=average,  values=12:18
 ****
 ** Here we access standard Abaqus CPS4 results, which has 4 integration points.
 ** stress and strains, and we can add them to the stress/strain collection of our UELs, so we can post-process them together in ParaView/Ensight
 ** However, since we have a 2D analysis, Abaqus exports only 2D stress/strain tensors with 3 components. 
 ** we need to fill them into a 3D Voigt tensor with 6 components, by using the f(x) feature!
-*ensightPerElementVariable, set=SECSTEELLOAD,   exportName=stress, source=S, nIntegrationPoints=4, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-*ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=stress, source=S, nIntegrationPoints=4, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-*ensightPerElementVariable, set=SECSTEELLOAD,   exportName=strain, source=E, nIntegrationPoints=4, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-*ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=strain, source=E, nIntegrationPoints=4, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariable, set=SECSTEELLOAD,   exportName=stress, result=S, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=stress, result=S, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariable, set=SECSTEELLOAD,   exportName=strain, result=E, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=strain, result=E, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
