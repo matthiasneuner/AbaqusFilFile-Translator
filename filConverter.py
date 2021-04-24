@@ -56,8 +56,8 @@ if __name__ == "__main__":
     
     exportName  = ''.join(fn.split('/')[-1].split('.')[-2])
     lockFile =  fn.split('.')[0]+'.lck' 
-    print("{:<20}{:>20}".format('opening file',fn))
-    print('*'*48)
+    print("{:<20}{:>60}".format('opening file',fn))
+    print('*'*80)
     
     exportEngine = eE.ExportEngine(exportJobs, exportName )
 
@@ -144,15 +144,15 @@ if __name__ == "__main__":
             
     exportEngine.finalize()
         
-    print('*'*48)
+    print('*'*80)
     print('Summary of .fil file:')
-    print('{:<20}{:>28}'.format('nodes:',len(exportEngine.allNodes)))
-    print('{:<20}{:>28}'.format('elements:',len(exportEngine.allElements)))
-    print('{:<20}{:>28}'.format('element sets:',len(exportEngine.elSets)))
+    print('{:<60}{:>20}'.format('nodes:',len(exportEngine.allNodes)))
+    print('{:<60}{:>20}'.format('elements:',len(exportEngine.allElements)))
+    print('{:<60}{:>20}'.format('element sets:',len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
         for elType, elements in elSet.elements.items():
-            print('{:.<4}{:<16}{:8}{:>11} elements'.format('.',setName,elType, len(elements)))
-    print('{:<20}{:>28}'.format('increments:',exportEngine.nIncrements))
+            print('{:<4}{:<46}{:10}{:>11} elements'.format(' ',setName,elType, len(elements)))
+    print('{:<60}{:>20}'.format('increments:',exportEngine.nIncrements))
 
     
 
