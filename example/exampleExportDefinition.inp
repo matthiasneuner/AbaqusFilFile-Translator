@@ -23,7 +23,7 @@
 ** of course, this is dependent on the UEL!
 **
 ** assumed layout of the SDV vector per UEL:
-** [ <- offset-> [ data of IP1] <- qpDistance -> [ data of IP2] <- qpDistance -> .. ] 
+** [ [ qpInitialOffset ... ] [ DATA of QP1 ...  qpDistance -> ] [ DATA of QP 2 ... qpDistance -> ] ]
 
 *UELSDVToQuadraturePoints, set=SECCONC, destination=ConcUelSDVs, qpCount=4, qpInitialOffset=0, qpDistance=18
 
