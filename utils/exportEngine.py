@@ -143,6 +143,7 @@ class ExportEngine:
             5: ('SDV output', lambda x: self.handlePerElementOutput(x, 'SDV')),
             11: ('S output', lambda x : self.handlePerElementOutput(x, 'S')),
             21: ('E output', lambda x : self.handlePerElementOutput(x, 'E')),
+            22: ('PE output', lambda x : self.handlePerElementOutput(x, 'PE')),
             101: ('U output', lambda x : self.handlePerNodeOutput(x, 'U')),
             102: ('V output', lambda x : self.handlePerNodeOutput(x, 'V')),
             103: ('A output', lambda x : self.handlePerNodeOutput(x, 'A')),
