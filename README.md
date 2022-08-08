@@ -41,6 +41,23 @@ general usage:
 available keywords:
 -------------------
 
+    *UELSDVToQuadraturePoints    relate SDV data to quadrature points.
+
+        destination                   string        new name of the result
+        qpCount                       integer       define a periodical pattern for a repeatet extraction for results at
+                                                    quadrature points
+        qpDistance                    integer       define a periodical pattern: data distance between qps
+        qpInitialOffset               integer       define a periodical pattern: initial constant offset before qp data
+                                                    begins
+        set                           string        Abaqus element set
+
+
+    *computeAverageOverQuadraturePoints    perform a computation on an elemental result
+
+        result                        string        Abaqus variable identifier
+        set                           string        Abaqus element set
+
+
     *defineElementType    assign an ensight Shape to an Abaqus Element
 
         element                       string        Abaqus (User) Element
@@ -61,16 +78,14 @@ available keywords:
         exportName                    string        export name of the variable
         f(x)                          string        (optional), apply a mathematical/array expression on the result
                                                     array (per Element, slow!)
-        integrationPointDataDistance  integer       (optional), define a periodical pattern: initial constant offset
-        integrationPointDataOffset    integer       (optional), define a periodical pattern: offset between extraction
-                                                    points
-        nIntegrationPoints            integer       (optional), define a periodical pattern for a repeatet extraction
-                                                    (e.g. for results @ GaussPts)
+        location                      string        where is the result ? qps | computed
+        result                        string        Abaqus variable identifier
         set                           string        Abaqus element set
-        source                        string        Abaqus variable identifier
         timeSet                       integer       (optional), define a timeset, for 'different' timelines
         values                        string        (optional), define a index/slice to extract a subarray from the
                                                     total result array (per Element)
+        which                         string        which one? e.g. quadrature point numbers or "average" for average
+                                                    computed results
 
 
     *ensightPerNodeVariable    define an Ensight per node variable for export
@@ -82,8 +97,13 @@ available keywords:
                                                     array (per Element, slow!)
         fillMissingValues             float         (optional), fill missing nodal values with a constant values,
                                                     requires specified dimensions (slow!)
+        result                        string        Abaqus variable identifier
         set                           string        Abaqus element set
-        source                        string        Abaqus variable identifier
         timeSet                       integer       (optional), define a timeset, for 'different' timelines
         values                        string        (optional), define a index/slice to extract a subarray from the
                                                     total result array (per Element)
+
+
+    *include    (optional) load extra .inp file (fragment), use relative path to current .inp
+
+r       input                         string        filename

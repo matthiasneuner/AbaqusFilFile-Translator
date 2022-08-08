@@ -29,7 +29,7 @@ typeMappings = {    '*defineElementType' :                  ('assign an ensight 
                          'result':                          (str, 'Abaqus variable identifier'),
                          }),
 
-                    '*UELSDVToQuadraturePoints':  ("perform a computation on an elemental result",
+                    '*UELSDVToQuadraturePoints':            ("relate SDV data to quadrature points",
                         {'set':                             (str, "Abaqus element set") ,
                          'destination':                     (str, 'new name of the result'),
                          'qpCount':                         (int, "define a periodical pattern for a repeatet extraction for results at quadrature points"),
