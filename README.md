@@ -106,4 +106,4 @@ available keywords:
 
     *include    (optional) load extra .inp file (fragment), use relative path to current .inp
 
-r       input                         string        filename
+       input                         string        filename
