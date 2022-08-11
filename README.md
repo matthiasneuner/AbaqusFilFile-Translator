@@ -11,6 +11,11 @@ anymore.
 
 Requires Python 3.6+ (depends on dictionary with ordered storage) and Numpy.
 
+<p align="center">
+  <img width="512" height="512" src="./share/hacc_disp_boomerang_10c.gif">
+</p>
+
+
 Features
 ===========================
 *  Custom conversion  of .fil files to Ensight .case files using export definition files.
