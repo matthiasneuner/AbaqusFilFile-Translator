@@ -53,7 +53,7 @@ typeMappings = {
         {
             "set": (str, "Abaqus element set"),
             "destination": (str, "new name of the result"),
-            "qpCount": (int, "define a periodical pattern for a repeatet extraction for results at quadrature points"),
+            "qpCount": (int, "define a periodical pattern for a repeated extraction for results at quadrature points"),
             "qpDistance": (int, "define a periodical pattern: data distance between qps"),
             "qpInitialOffset": (int, "define a periodical pattern: initial constant offset before qp data begins"),
         },

@@ -13,6 +13,7 @@ import math
 import utils.exportEngine as eE
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
+import humanize
 
 FIL_WORDSIZE = 8
 FIL_CHUNKSIZE = 513 * FIL_WORDSIZE
@@ -67,15 +68,13 @@ if __name__ == "__main__":
     print("{:<20}{:>60}".format("opening file", fn))
     print("*" * 80)
 
-    print(exportJobs)
-
     exportEngine = eE.ExportEngine(exportJobs, exportName)
 
     fileSize = getCurrentFileSize(fn)
     numberOfBatchSteps = math.ceil(fileSize / FIL_BATCHSIZE)
 
-    print("file has a size of {:} bytes".format(fileSize))
-    print("file will be processed in {:} steps".format(numberOfBatchSteps))
+    print("file has a size of {:}".format(humanize.naturalsize(fileSize)))
+    print("file will be processed in {:} batch(es)".format(numberOfBatchSteps))
 
     fileIdx = 0
     wordIdx = 0

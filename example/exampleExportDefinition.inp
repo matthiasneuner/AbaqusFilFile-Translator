@@ -41,17 +41,21 @@
 *ensightPerElementVariableJob, name=alphaD, dimensions=1
 *ensightPerElementVariableJobEntry, set=SECCONC, job=alphaP, result=ConcUelSDVs, location=computed, which=average,  values=0
 
+*ensightPerElementVariableJob, name=stress, dimensions=6
+*ensightPerElementVariableJob, name=strain, dimensions=6
 **** ... and tensorial variables by means of a python slice!
-***ensightPerElementVariable, set=SECCONC, exportName=stress, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=6:12
-***ensightPerElementVariable, set=SECCONC, exportName=stress, result=ConcUelSDVs, location=computed, which=average,  values=6:12
-***ensightPerElementVariable, set=SECCONC, exportName=strain, result=ConcUelSDVs, location=qps, which='1;2;3;4',  values=12:18
-***ensightPerElementVariable, set=SECCONC, exportName=strain, result=ConcUelSDVs, location=computed, which=average,  values=12:18
+*ensightPerElementVariableJobEntry, set=SECCONC, job=stress, result=ConcUelSDVs, location=computed, which=average,  values=6:12
+*ensightPerElementVariableJobEntry, set=SECCONC, job=strain, result=ConcUelSDVs, location=computed, which=average,  values=12:18
 ******
 **** Here we access standard Abaqus CPS4 results, which has 4 integration points.
 **** stress and strains, and we can add them to the stress/strain collection of our UELs, so we can post-process them together in ParaView/Ensight
 **** However, since we have a 2D analysis, Abaqus exports only 2D stress/strain tensors with 3 components. 
 **** we need to fill them into a 3D Voigt tensor with 6 components, by using the f(x) feature!
-***ensightPerElementVariable, set=SECSTEELLOAD,   exportName=stress, result=S, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-***ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=stress, result=S, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-***ensightPerElementVariable, set=SECSTEELLOAD,   exportName=strain, result=E, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
-***ensightPerElementVariable, set=SECSTEELBOTTOM, exportName=strain, result=E, location=qps, which='1;2;3;4', f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*computeAverageOverQuadraturePoints, set=SECSTEELLOAD, result=S
+*computeAverageOverQuadraturePoints, set=SECSTEELLOAD, result=E
+*computeAverageOverQuadraturePoints, set=SECSTEELBOTTOM, result=S
+*computeAverageOverQuadraturePoints, set=SECSTEELBOTTOM, result=E
+*ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=stress, result=S, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=stress, result=S, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariableJobEntry, set=SECSTEELLOAD,   job=strain, result=E, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'
+*ensightPerElementVariableJobEntry, set=SECSTEELBOTTOM, job=strain, result=E, location=computed, which=average, f(x)='[x[0], x[1], 0, x[2], 0, 0]'

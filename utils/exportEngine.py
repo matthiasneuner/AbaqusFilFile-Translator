@@ -141,9 +141,9 @@ class EnsightPerSetJobEntry:
         result,
         location,
         which,
-        extractionSlice=False,
-        extractionFunction=False,
-        offset=False,
+        extractionSlice=None,
+        extractionFunction=None,
+        offset=None,
         fillMissingValuesTo=None,
     ):
         self.job = job
@@ -281,7 +281,9 @@ class ExportEngine:
                 # intermediate saving ...
                 self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks, closeFileHandles=False)
 
+            # data might consume a lot of memory, so we delete it (explicitly)
             del self.currentIncrement
+            # and create a new dict for a new increment; it is filled with the next start increment entry in the fil file
             self.currentIncrement = dict()
 
     def finalize(self):
@@ -391,9 +393,9 @@ class ExportEngine:
                 result=result,
                 location=loc,
                 which=which,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else False,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else False,
-                offset=False,
+                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
+                offset=None,
             )
 
             job.entries[setName] = perSetJob
@@ -415,9 +417,9 @@ class ExportEngine:
                 result=entry["result"],
                 location=None,
                 which=None,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else False,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else False,
-                offset=False,
+                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
+                offset=None,
                 fillMissingValuesTo=entry.get("fillMissingValuesTo", None),
             )
 
@@ -430,31 +432,36 @@ class ExportEngine:
         for setName, jobEntry in exportJob.entries.items():
             elSet = self.elSets[setName]
 
+            # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
+            setNodeIndices = elSet.getEnsightCompatibleReducedNodes().keys()
+
+            results = [self.currentIncrement["nodeResults"][jobEntry.result].get(node, None) for node in setNodeIndices]
+
+            if jobEntry.extractionSlice is not None:
+                results = [r[jobEntry.extractionSlice] if r is not None else r for r in results]
+
+            if jobEntry.extractionFunction is not None:
+                results = [perSetJobEntry.extractionFunction(r) if r is not None else r for r in results]
+
             if jobEntry.fillMissingValuesTo is not None:
-                results = np.full(
-                    (len(elSet.getEnsightCompatibleReducedNodes()), exportJob.dimensions), jobEntry.fillMissingValuesTo
-                )
+                defaultResult = np.full((exportJob.dimensions,), jobEntry.fillMissingValuesTo)
+                d = exportJob.dimensions
 
-                # determine the size of the results we have
-                for i, node in enumerate(elSet.getEnsightCompatibleReducedNodes().keys()):
-                    if node in self.currentIncrement["nodeResults"][jobEntry.result]:
-                        vals = self.currentIncrement["nodeResults"][jobEntry.result][node]
-                        results[i, 0 : vals.shape[0]] = vals
+                # first fill up all the results we have
+                results = [
+                    np.append(
+                        r,
+                        (jobEntry.fillMissingValuesTo,) * (d - r.shape[0]),
+                    )
+                    if r is not None and r.shape[0] != d
+                    else r
+                    for r in results
+                ]
 
-            else:
-                results = np.asarray(
-                    [
-                        self.currentIncrement["nodeResults"][jobEntry.result][node]
-                        for node in elSet.getEnsightCompatibleReducedNodes().keys()
-                    ]
-                )
+                # then set all those we don't have for certain nodes
+                results = [defaultResult if r is None else r for r in results]
 
-            if jobEntry.extractionFunction:
-                results = np.apply_along_axis(jobEntry.extractionFunction, axis=1, arr=results[:, jobEntry.offset :])
-                results = np.reshape(results, (results.shape[0], -1))
-
-            if jobEntry.extractionSlice:
-                results = results[:, jobEntry.extractionSlice]
+            results = np.asarray(results, dtype=float)
 
             setVariableDimensions = results.shape[1]
 
