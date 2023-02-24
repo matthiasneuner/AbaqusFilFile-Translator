@@ -256,7 +256,29 @@ class ExportEngine:
             self.ensightCase.setCurrentTime(self.currentIncrement["tTotal"])
             self.timeHistory.append(self.currentIncrement["tTotal"])
 
-            print("parsing increment {:>5}  tTotal:{:>16.5f}".format(self.nIncrements, self.currentIncrement["tTotal"]))
+            print("*" * 80)
+            print("increment contained element results for")
+            print(
+                "\n".join(
+                    [
+                        " {:5} [{:}]".format(resName, ", ".join([s for s in resEntries]))
+                        for resName, resEntries in self.currentIncrement["elementResults"].items()
+                    ]
+                )
+            )
+            print("")
+            print("increment contained node results for")
+            print(
+                "\n".join(
+                    [
+                        " {:5} [{:10} nodes]".format(resName, len(resEntries))
+                        for resName, resEntries in self.currentIncrement["nodeResults"].items()
+                    ]
+                )
+            )
+            print("")
+
+            print("exporting...")
 
             for exportJob in self.perNodeJobs.values():
                 enSightVar = self.createEnsightPerNodeVariableFromPerNodeJob(exportJob)
@@ -432,6 +454,8 @@ class ExportEngine:
         for setName, jobEntry in exportJob.entries.items():
             elSet = self.elSets[setName]
 
+            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
+
             # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
             setNodeIndices = elSet.getEnsightCompatibleReducedNodes().keys()
 
@@ -489,6 +513,8 @@ class ExportEngine:
 
             incrementVariableResults = self.currentIncrement["elementResults"][result][setName]
             incrementVariableResultsArrays = {}
+
+            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
 
             for ensElType, elDict in incrementVariableResults.items():
                 try:
@@ -658,6 +684,8 @@ class ExportEngine:
         currentIncrement["timeInc"] = timeInc
         currentIncrement["elementResults"] = RecursiveDefaultDict()
         currentIncrement["nodeResults"] = RecursiveDefaultDict()
+        print("*" * 80)
+        print("processing increment {:>5}  tTotal:{:>16.5f}".format(self.nIncrements, self.currentIncrement["tTotal"]))
 
     def addLabelCrossReference(self, recordContent):
         r = recordContent

@@ -13,11 +13,18 @@ import math
 import utils.exportEngine as eE
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
-import humanize
 
 FIL_WORDSIZE = 8
 FIL_CHUNKSIZE = 513 * FIL_WORDSIZE
 FIL_BATCHSIZE = FIL_CHUNKSIZE * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
+
+
+def fileSizeHumanReadable(num, suffix="B"):
+    for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
+        if abs(num) < 1000:
+            return f"{num:3.1f} {unit}{suffix}"
+        num /= 1000
+    return f"{num:.1f} Y{suffix}"
 
 
 def getCurrentFileSize(
@@ -73,7 +80,7 @@ if __name__ == "__main__":
     fileSize = getCurrentFileSize(fn)
     numberOfBatchSteps = math.ceil(fileSize / FIL_BATCHSIZE)
 
-    print("file has a size of {:}".format(humanize.naturalsize(fileSize)))
+    print("file has a size of {:}".format(fileSizeHumanReadable(fileSize)))
     print("file will be processed in {:} batch(es)".format(numberOfBatchSteps))
 
     fileIdx = 0
