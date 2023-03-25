@@ -35,6 +35,15 @@ typeMappings = {
             ),
         },
     ),
+    "*ignoreLastNodesForElementType": (
+        "assign an ensight Shape to an Abaqus Element",
+        {
+            "element": (str, "Abaqus (User) Element"),
+            "number": (
+                int,
+                "The number of nodes to be ignored (e.g, make a hexa27 to a hex20 with number=7)",),
+        },
+    ),
     "*ensightCaseOptions": (
         "modify Ensight export options",
         {

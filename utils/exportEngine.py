@@ -57,7 +57,6 @@ class Node:
         self.label = label
         self.coords = coords
 
-
 class Element:
     def __init__(self, label, shape, nodes):
         self.label = label
@@ -85,22 +84,28 @@ class ElSet:
     def getEnsightCompatibleReducedNodes(
         self,
     ):
-        self._reducedNodes = dict(
-            [
-                (node.label, node)
-                for elementsByShape in self.elements.values()
-                for element in elementsByShape
-                for node in element.nodes
-            ]
-        )
+        if not self._reducedNodes:
+
+         self._reducedNodes = dict(
+             [
+                 (node.label, node)
+                 #(node, self.allNodes[node])
+                 for elementsByShape in self.elements.values()
+                 for element in elementsByShape
+                 for node in element.nodes
+             ]
+         )
+
         return self._reducedNodes
 
     def getEnsightCompatibleReducedNodeCoords(
         self,
     ):
-        self._reducedNodeCoords3D = np.asarray(
-            [node.coords for node in self.getEnsightCompatibleReducedNodes().values()]
-        )
+        if not self._reducedNodeCoords3D:
+            self._reducedNodeCoords3D = np.asarray(
+                [node.coords for node in self.getEnsightCompatibleReducedNodes().values()]
+            )
+
         return self._reducedNodeCoords3D
 
     def getEnsightCompatibleElementNodeIndices(
@@ -131,7 +136,6 @@ class EnsightExportJob:
         self.timeSetID = timeSetID
         self.entries = {}
         self.writeEmptyTimeSteps = writeEmptyTimeSteps
-
 
 class EnsightPerSetJobEntry:
     def __init__(
@@ -175,8 +179,12 @@ class ExportEngine:
         )
 
         self.ensightElementTypeMappings = {x["element"]: x["shape"] for x in exportJobs["*defineElementType"]}
+        self.ignoreLastNodesForElType = {x["element"]: x["number"] for x in exportJobs["*ignoreLastNodesForElementType"]}
 
-        self.allNodes = defaultdict(Node)
+        self.allNodes = dict()
+
+        # add a default node, to which abaqus falls back if it creates node in place (e.g, for hex27 elements in contact)
+        self.allNodes[0] = Node(0, np.array([0.0, 0.0, 0.0]) )
 
         self.allElements = {}
         self.nSets = {}
@@ -232,6 +240,14 @@ class ExportEngine:
 
     def finishAndParseIncrement(self, recordContent):
         if self.currentState == "model setup":
+
+            # Time to switch all node labels in elements, nodesets to the nodeObjects!
+            for el in self.allElements.values():
+                el.nodes = [self.allNodes[label] for label in el.nodes]
+
+            for nSet in self.nSets.values():
+                nSet.nodes = [self.allNodes[n] for n in nSet.nodes]
+
             # replace all label references by the respective labels
             for key, label in self.labelCrossReferences.items():
                 strKey = key  # str(key)
@@ -460,8 +476,11 @@ class ExportEngine:
 
                 # then set all those we don't have for certain nodes
                 results = [defaultResult if r is None else r for r in results]
-
-            results = np.asarray(results, dtype=float)
+            
+            try:
+                results = np.asarray(results, dtype=float)
+            except:
+                raise Exception("Failed to set up all results {:} for all nodes in {:}. Try using fillMissingValuesTo= option?".format(jobEntry.result, setName))
 
             setVariableDimensions = results.shape[1]
 
@@ -597,19 +616,30 @@ class ExportEngine:
         if coords.shape[0] < 3:
             coords = np.pad(coords, (0, 3 - coords.shape[0]), mode="constant")
 
-        node = self.allNodes[label]
-        node.label = label
 
-        node.coords = coords
+        if label in self.allNodes:
+            print("Node {:} already exists!".format(label))
+            exit(0)
+
+        self.allNodes[label] = Node(label, coords)
+
+        # node = self.allNodes[label]
+        # node.label = label
+
+        # node.coords = coords
 
     def addElement(self, recordContent):
         elNum = filInt(recordContent[0])[0]
         elType = filStrippedString(recordContent[1])
         elabqNodes = filInt(recordContent[2:])
 
+        nodes = [n for n in elabqNodes]
+
+        if elType in self.ignoreLastNodesForElType:
+            nodes = nodes[0:-self.ignoreLastNodesForElType[elType]]
+
         self.allElements[elNum] = Element(
-            elNum, self.ensightElementTypeMappings[elType], [self.allNodes[n] for n in elabqNodes]
-        )
+            elNum, self.ensightElementTypeMappings[elType], nodes)
 
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -637,11 +667,12 @@ class ExportEngine:
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
 
-        self.nSets[setName] = NSet(setName, [self.allNodes[n] for n in abqNodes])
+        self.nSets[setName] = NSet(setName, [n for n in abqNodes])
 
     def contAddNodeset(self, recordContent):
         abqNodes = filInt(recordContent)
-        self.nSets[self.currentSetName].appendNodes([self.allNodes[n] for n in abqNodes])
+       # self.nSets[self.currentSetName].appendNodes([self.allNodes[n] for n in abqNodes])
+        self.nSets[self.currentSetName].appendNodes([n for n in abqNodes])
 
     def addIncrement(self, recordContent):
         self.currentState = "increment parsing"
