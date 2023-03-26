@@ -46,10 +46,10 @@ general usage:
 available keywords:
 -------------------
 
-    *UELSDVToQuadraturePoints    relate SDV data to quadrature points.
+    *UELSDVToQuadraturePoints    relate SDV data to quadrature points
 
         destination                   string        new name of the result
-        qpCount                       integer       define a periodical pattern for a repeatet extraction for results at
+        qpCount                       integer       define a periodical pattern for a repeated extraction for results at
                                                     quadrature points
         qpDistance                    integer       define a periodical pattern: data distance between qps
         qpInitialOffset               integer       define a periodical pattern: initial constant offset before qp data
@@ -76,39 +76,49 @@ available keywords:
         discardTime                   string        discard Time values and replace by enumeration of time steps
 
 
-    *ensightPerElementVariable    define an Ensight per element variable for export
+    *ensightPerElementVariableJob    define an Ensight per element variable for export
 
         dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing
                                                     components will be zero filled
-        exportName                    string        export name of the variable
+        name                          string        export name of the variable
+        timeSet                       integer       (optional), define a timeset, for 'different' timelines
+
+
+    *ensightPerElementVariableJobEntry    define an Ensight per element variable entry for an element set
+
         f(x)                          string        (optional), apply a mathematical/array expression on the result
                                                     array (per Element, slow!)
+        job                           string        export name of the variable
         location                      string        where is the result ? qps | computed
         result                        string        Abaqus variable identifier
         set                           string        Abaqus element set
-        timeSet                       integer       (optional), define a timeset, for 'different' timelines
         values                        string        (optional), define a index/slice to extract a subarray from the
                                                     total result array (per Element)
         which                         string        which one? e.g. quadrature point numbers or "average" for average
                                                     computed results
 
 
-    *ensightPerNodeVariable    define an Ensight per node variable for export
+    *ensightPerNodeVariableJob    define an Ensight per node variable for export
 
         dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing
                                                     components will be zero filled
-        exportName                    string        export name of the variable
+        name                          string        export name of the variable
+        timeSet                       integer       (optional), define a timeset, for 'different' timelines
+
+
+    *ensightPerNodeVariableJobEntry    define an Ensight per node variable for an element set
+
         f(x)                          string        (optional), apply a mathematical/array expression on the result
                                                     array (per Element, slow!)
         fillMissingValues             float         (optional), fill missing nodal values with a constant values,
                                                     requires specified dimensions (slow!)
+        job                           string        The associated export job
         result                        string        Abaqus variable identifier
         set                           string        Abaqus element set
-        timeSet                       integer       (optional), define a timeset, for 'different' timelines
         values                        string        (optional), define a index/slice to extract a subarray from the
                                                     total result array (per Element)
 
 
     *include    (optional) load extra .inp file (fragment), use relative path to current .inp
 
-       input                         string        filename
+        input                         string        filename

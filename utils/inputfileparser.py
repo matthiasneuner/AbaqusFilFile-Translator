@@ -79,7 +79,7 @@ typeMappings = {
         },
     ),
     "*ensightPerNodeVariableJobEntry": (
-        "define an Ensight per node variable for export",
+        "define an Ensight per node variable for an element set",
         {
             "job": (str, "The associated export job"),
             "set": (str, "Abaqus element set"),
@@ -107,7 +107,7 @@ typeMappings = {
         },
     ),
     "*ensightPerElementVariableJobEntry": (
-        "define an Ensight per element variable for export",
+        "define an Ensight per element variable entry for an element set",
         {
             "job": (str, "export name of the variable"),
             "set": (str, "Abaqus element set"),
