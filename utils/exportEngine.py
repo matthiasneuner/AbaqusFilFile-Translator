@@ -52,10 +52,28 @@ def RecursiveDefaultDict():
     # return dict()
 
 
+class ElementDefinition:
+    def __init__(self, label, elementType, nodeLabels):
+        self.label = label
+        self.shape = elementType
+        self.nodeLabels = nodeLabels
+
+
+class ElSetDefinition:
+    def __init__(self, name, elementLabels):
+        self.name = name
+        self.elementLabels = elementLabels
+        self.appendElementLabels(elementLabels)
+
+    def appendElementLabels(self, elementLabels):
+        self.elementLabels += elementLabels
+
+
 class Node:
     def __init__(self, label=None, coords=None):
         self.label = label
         self.coords = coords
+
 
 class Element:
     def __init__(self, label, shape, nodes):
@@ -69,64 +87,73 @@ class ElSet:
         self.name = name
         self.ensightPartID = ensightPartID
 
-        self.elements = defaultdict(list)
-        self.appendElements(elements)
+        self.elementsByShape = defaultdict(list)
 
-        self._elementLabels = None
-        self._reducedNodes = None
-        self._reducedElements = None
-        self._reducedNodeCoords3D = None
-
-    def appendElements(self, elements):
         for element in elements:
-            self.elements[element.shape].append(element)
+            self.elementsByShape[element.shape].append(element)
 
-    def getEnsightCompatibleReducedNodes(
+        self.reducedNodes = self._getEnsightCompatibleReducedNodes()
+        self.reducedNodeIndices = self._getEnsightCompatibleElementNodeIndices()
+        self.reducedElements = self._getEnsightCompatibleElements()
+        self.reducedNodeCoords3D = self._getEnsightCompatibleReducedNodeCoords()
+
+    def _getEnsightCompatibleReducedNodes(
         self,
     ):
-        if not self._reducedNodes:
-
-         self._reducedNodes = dict(
-             [
-                 (node.label, node)
-                 #(node, self.allNodes[node])
-                 for elementsByShape in self.elements.values()
-                 for element in elementsByShape
-                 for node in element.nodes
-             ]
-         )
-
-        return self._reducedNodes
-
-    def getEnsightCompatibleReducedNodeCoords(
-        self,
-    ):
-        if not self._reducedNodeCoords3D:
-            self._reducedNodeCoords3D = np.asarray(
-                [node.coords for node in self.getEnsightCompatibleReducedNodes().values()]
-            )
-
-        return self._reducedNodeCoords3D
-
-    def getEnsightCompatibleElementNodeIndices(
-        self,
-    ):
-        self._reducedNodeIndices = {node: i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys())}
-        self._reducedElements = dict()
-        for eShape, elements in self.elements.items():
-            self._reducedElements[eShape] = [
-                (e.label, [self._reducedNodeIndices[n.label] for n in e.nodes]) for e in elements
+        reducedNodes = dict(
+            [
+                (node.label, node)  # (node, self.allNodes[node])
+                for elementsByShape in self.elementsByShape.values()
+                for element in elementsByShape
+                for node in element.nodes
             ]
-        return self._reducedElements
+        )
+
+        return reducedNodes
+
+    def _getEnsightCompatibleReducedNodeCoords(
+        self,
+    ):
+        reducedNodeCoords3D = np.asarray(
+            [node.coords for node in self.reducedNodes.values()]
+        )
+
+        return reducedNodeCoords3D
+
+    def _getEnsightCompatibleElementNodeIndices(
+        self,
+    ):
+        reducedNodeIndices = {
+            node: i for (i, node) in enumerate(self.reducedNodes.keys())
+        }
+        return reducedNodeIndices
+
+    def _getEnsightCompatibleElements(
+        self,
+    ):
+        reducedElements = dict()
+
+        for eShape, elements in self.elementsByShape.items():
+            reducedElements[eShape] = [
+                (e.label, [self.reducedNodeIndices[n.label] for n in e.nodes])
+                for e in elements
+            ]
+        return reducedElements
+
+
+class NSetDefinition:
+    def __init__(self, name, nodeLabels):
+        self.name = name
+        self.nodeLabels = nodeLabels
+
+    def appendNodeLabels(self, nodeLabels):
+        self.nodeLabels += nodeLabels
 
 
 class NSet:
     def __init__(self, name, nodes):
         self.name = name
         self.nodes = nodes
-
-    def appendNodes(self, nodes):
-        self.nodes += nodes
 
 
 class EnsightExportJob:
@@ -136,6 +163,7 @@ class EnsightExportJob:
         self.timeSetID = timeSetID
         self.entries = {}
         self.writeEmptyTimeSteps = writeEmptyTimeSteps
+
 
 class EnsightPerSetJobEntry:
     def __init__(
@@ -158,16 +186,28 @@ class EnsightPerSetJobEntry:
         self.result = result
         self.location = location
         self.which = which
-        self.fillMissingValuesTo = fillMissingValuesTo if fillMissingValuesTo is None else float(fillMissingValuesTo)
+        self.fillMissingValuesTo = (
+            fillMissingValuesTo
+            if fillMissingValuesTo is None
+            else float(fillMissingValuesTo)
+        )
 
 
 class ExportEngine:
     def __init__(self, exportJobs, caseName):
-        self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(exportJobs["*UELSDVToQuadraturePoints"])
-        self.qpAverageJobs = self.collectQpAverageJobs(exportJobs["*computeAverageOverQuadraturePoints"])
+        self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(
+            exportJobs["*UELSDVToQuadraturePoints"]
+        )
+        self.qpAverageJobs = self.collectQpAverageJobs(
+            exportJobs["*computeAverageOverQuadraturePoints"]
+        )
 
-        self.perElementJobs = self.collectExportJobs(exportJobs["*ensightPerElementVariableJob"])
-        self.perNodeJobs = self.collectExportJobs(exportJobs["*ensightPerNodeVariableJob"])
+        self.perElementJobs = self.collectExportJobs(
+            exportJobs["*ensightPerElementVariableJob"]
+        )
+        self.perNodeJobs = self.collectExportJobs(
+            exportJobs["*ensightPerNodeVariableJob"]
+        )
 
         self.perElementJobs = self.collectPerElementJobEntries(
             exportJobs["*ensightPerElementVariableJobEntry"],
@@ -178,13 +218,21 @@ class ExportEngine:
             self.perNodeJobs,
         )
 
-        self.ensightElementTypeMappings = {x["element"]: x["shape"] for x in exportJobs["*defineElementType"]}
-        self.ignoreLastNodesForElType = {x["element"]: x["number"] for x in exportJobs["*ignoreLastNodesForElementType"]}
+        self.ensightElementTypeMappings = {
+            x["element"]: x["shape"] for x in exportJobs["*defineElementType"]
+        }
+        self.ignoreLastNodesForElType = {
+            x["element"]: x["number"]
+            for x in exportJobs["*ignoreLastNodesForElementType"]
+        }
 
-        self.allNodes = dict()
-
+        self.allNodes = {}
         # add a default node, to which abaqus falls back if it creates node in place (e.g, for hex27 elements in contact)
-        self.allNodes[0] = Node(0, np.array([0.0, 0.0, 0.0]) )
+        self.allNodes[0] = Node(0, np.array([0.0, 0.0, 0.0]))
+
+        self.elementDefinitions = {}
+        self.elSetDefinitions = {}
+        self.nSetDefinitions = {}
 
         self.allElements = {}
         self.nSets = {}
@@ -220,8 +268,8 @@ class ExportEngine:
             1911: ("output request definition", self.outputDefinition),
             1921: ("heading", lambda x: None),
             1922: ("heading", lambda x: None),
-            1931: ("node set definition", self.addNodeset),
-            1932: ("node set definition cont.", self.contAddNodeset),
+            1931: ("node set definition", self.createNodeSetDefinition),
+            1932: ("node set definition cont.", self.contNodeSetDefinition),
             1933: ("element set definition", self.addElset),
             1934: ("element set definition cont.", self.contAddElset),
             1940: ("label cross reference", self.addLabelCrossReference),
@@ -235,18 +283,37 @@ class ExportEngine:
             action(recordContent)
             return True
         else:
-            print("{:<20}{:>6}{:>10}{:>4}".format("unknown record:", recordType, " of length", recordLength))
+            print(
+                "{:<20}{:>6}{:>10}{:>4}".format(
+                    "unknown record:", recordType, " of length", recordLength
+                )
+            )
             return False
 
     def finishAndParseIncrement(self, recordContent):
         if self.currentState == "model setup":
+            ALLSet = ElSetDefinition("ALL", list(self.elementDefinitions.keys()))
+            self.elSetDefinitions["ALL"] = ALLSet
 
-            # Time to switch all node labels in elements, nodesets to the nodeObjects!
-            for el in self.allElements.values():
-                el.nodes = [self.allNodes[label] for label in el.nodes]
+            # Time to create Elements, ElSets and NodeSets from the definitions!
+            for elDef in self.elementDefinitions.values():
+                self.allElements[elDef.label] = Element(
+                    elDef.label,
+                    elDef.shape,
+                    [self.allNodes[label] for label in elDef.nodeLabels],
+                )
+                # el.nodes = [self.allNodes[label] for label in el.nodes]
 
-            for nSet in self.nSets.values():
-                nSet.nodes = [self.allNodes[n] for n in nSet.nodes]
+            for elSetDef in self.elSetDefinitions.values():
+                self.elSets[elSetDef.name] = ElSet(
+                    elSetDef.name,
+                    [self.allElements[label] for label in elSetDef.elementLabels],
+                )
+
+            for nSetDef in self.nSetDefinitions.values():
+                self.nSets[nSetDef.name] = NSet(
+                    nSetDef.name, [self.allNodes[n] for n in nSetDef.nodeLabels]
+                )
 
             # replace all label references by the respective labels
             for key, label in self.labelCrossReferences.items():
@@ -277,8 +344,12 @@ class ExportEngine:
             print(
                 "\n".join(
                     [
-                        " {:5} [{:}]".format(resName, ", ".join([s for s in resEntries]))
-                        for resName, resEntries in self.currentIncrement["elementResults"].items()
+                        " {:5} [{:}]".format(
+                            resName, ", ".join([s for s in resEntries])
+                        )
+                        for resName, resEntries in self.currentIncrement[
+                            "elementResults"
+                        ].items()
                     ]
                 )
             )
@@ -288,7 +359,9 @@ class ExportEngine:
                 "\n".join(
                     [
                         " {:5} [{:10} nodes]".format(resName, len(resEntries))
-                        for resName, resEntries in self.currentIncrement["nodeResults"].items()
+                        for resName, resEntries in self.currentIncrement[
+                            "nodeResults"
+                        ].items()
                     ]
                 )
             )
@@ -299,7 +372,9 @@ class ExportEngine:
             for exportJob in self.perNodeJobs.values():
                 enSightVar = self.createEnsightPerNodeVariableFromPerNodeJob(exportJob)
                 if enSightVar:
-                    self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
+                    self.ensightCase.writeVariableTrendChunk(
+                        enSightVar, exportJob.timeSetID
+                    )
                     del enSightVar
 
             # operate on elemetal results (e.g. compute average over quadraturePoint )
@@ -310,14 +385,21 @@ class ExportEngine:
                 self.computeQpAverage(qpAverageJob)
 
             for exportJob in self.perElementJobs.values():
-                enSightVar = self.createEnsightPerElementVariableFromPerElementJob(exportJob)
+                enSightVar = self.createEnsightPerElementVariableFromPerElementJob(
+                    exportJob
+                )
                 if enSightVar:
-                    self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
+                    self.ensightCase.writeVariableTrendChunk(
+                        enSightVar, exportJob.timeSetID
+                    )
                     del enSightVar
 
             if self.nIncrements % 10 == 0:
                 # intermediate saving ...
-                self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks, closeFileHandles=False)
+                self.ensightCase.finalize(
+                    discardTimeMarks=self.ensightCaseDiscardTimeMarks,
+                    closeFileHandles=False,
+                )
 
             # data might consume a lot of memory, so we delete it (explicitly)
             del self.currentIncrement
@@ -331,16 +413,13 @@ class ExportEngine:
         partList = []
         partNumber = 1
 
-        ALLSet = ElSet("ALL", self.allElements.values())
-        self.elSets["ALL"] = ALLSet
-
         for elSet in self.elSets.values():
             elSetPart = es.EnsightUnstructuredPart(
                 elSet.name,
                 partNumber,
-                elSet.getEnsightCompatibleElementNodeIndices(),
-                elSet.getEnsightCompatibleReducedNodeCoords(),
-                list(elSet.getEnsightCompatibleReducedNodes().keys()),
+                elSet._getEnsightCompatibleElements(),
+                elSet._getEnsightCompatibleReducedNodeCoords(),
+                list(elSet._getEnsightCompatibleReducedNodes().keys()),
             )
             elSet.ensightPartID = partNumber
             partList.append(elSetPart)
@@ -363,7 +442,9 @@ class ExportEngine:
 
         for elTypeResults in setResults.values():
             for elResults in elTypeResults.values():
-                elResults["computed"]["average"] = np.mean([qpRes for qpRes in elResults["qps"].values()], axis=0)
+                elResults["computed"]["average"] = np.mean(
+                    [qpRes for qpRes in elResults["qps"].values()], axis=0
+                )
 
     def collectUelSDVToQpJobs(self, entries):
         jobs = []
@@ -372,7 +453,10 @@ class ExportEngine:
             offset = entry["qpInitialOffset"]
             nQps = entry["qpCount"]
             qpDistance = entry["qpDistance"]
-            entry["qpSlices"] = [slice(offset + i * qpDistance, offset + (i + 1) * qpDistance) for i in range(nQps)]
+            entry["qpSlices"] = [
+                slice(offset + i * qpDistance, offset + (i + 1) * qpDistance)
+                for i in range(nQps)
+            ]
 
             jobs.append(entry)
 
@@ -385,14 +469,18 @@ class ExportEngine:
 
         source = self.currentIncrement["elementResults"]["SDV"][setName]
 
-        destination = self.currentIncrement["elementResults"][job["destination"]][setName]
+        destination = self.currentIncrement["elementResults"][job["destination"]][
+            setName
+        ]
 
         for ensElType, elements in source.items():
             for elLabel, uelResults in elements.items():
                 uelSdv = uelResults["qps"][1]
                 qpsData = [uelSdv[qpSlice] for qpSlice in qpSlices]
 
-                destination[ensElType][elLabel]["qps"] = {(i + 1): qpData for i, qpData in enumerate(qpsData)}
+                destination[ensElType][elLabel]["qps"] = {
+                    (i + 1): qpData for i, qpData in enumerate(qpsData)
+                }
 
     def collectExportJobs(self, jobDefinitions):
         """Collect all defined per element jobs in a dictionary
@@ -404,7 +492,9 @@ class ExportEngine:
             dimensions = int(jobDef["dimensions"])
             timeSet = jobDef.get("timeSet", 1)
 
-            jobs[jobName] = EnsightExportJob(jobName, dimensions, timeSet, writeEmptyTimeSteps=True)
+            jobs[jobName] = EnsightExportJob(
+                jobName, dimensions, timeSet, writeEmptyTimeSteps=True
+            )
 
         return jobs
 
@@ -431,8 +521,12 @@ class ExportEngine:
                 result=result,
                 location=loc,
                 which=which,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
+                extractionSlice=sliceFromString(entry["values"])
+                if "values" in entry
+                else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"])
+                if "f(x)" in entry
+                else None,
                 offset=None,
             )
 
@@ -455,8 +549,12 @@ class ExportEngine:
                 result=entry["result"],
                 location=None,
                 which=None,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
+                extractionSlice=sliceFromString(entry["values"])
+                if "values" in entry
+                else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"])
+                if "f(x)" in entry
+                else None,
                 offset=None,
                 fillMissingValuesTo=entry.get("fillMissingValuesTo", None),
             )
@@ -473,18 +571,28 @@ class ExportEngine:
             print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
 
             # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
-            setNodeIndices = elSet.getEnsightCompatibleReducedNodes().keys()
+            setNodeIndices = elSet.reducedNodes.keys()
 
-            results = [self.currentIncrement["nodeResults"][jobEntry.result].get(node, None) for node in setNodeIndices]
+            results = [
+                self.currentIncrement["nodeResults"][jobEntry.result].get(node, None)
+                for node in setNodeIndices
+            ]
 
             if jobEntry.extractionSlice is not None:
-                results = [r[jobEntry.extractionSlice] if r is not None else r for r in results]
+                results = [
+                    r[jobEntry.extractionSlice] if r is not None else r for r in results
+                ]
 
             if jobEntry.extractionFunction is not None:
-                results = [perSetJobEntry.extractionFunction(r) if r is not None else r for r in results]
+                results = [
+                    perSetJobEntry.extractionFunction(r) if r is not None else r
+                    for r in results
+                ]
 
             if jobEntry.fillMissingValuesTo is not None:
-                defaultResult = np.full((exportJob.dimensions,), jobEntry.fillMissingValuesTo)
+                defaultResult = np.full(
+                    (exportJob.dimensions,), jobEntry.fillMissingValuesTo
+                )
                 d = exportJob.dimensions
 
                 # first fill up all the results we have
@@ -500,25 +608,34 @@ class ExportEngine:
 
                 # then set all those we don't have for certain nodes
                 results = [defaultResult if r is None else r for r in results]
-            
+
             try:
                 results = np.asarray(results, dtype=float)
             except:
-                raise Exception("Failed to set up all results {:} for all nodes in {:}. Try using fillMissingValuesTo= option?".format(jobEntry.result, setName))
+                raise Exception(
+                    "Failed to set up all results {:} for all nodes in {:}. Try using fillMissingValuesTo= option?".format(
+                        jobEntry.result, setName
+                    )
+                )
 
             setVariableDimensions = results.shape[1]
 
             if setVariableDimensions != exportJob.dimensions:
                 raise Exception(
                     "Variable dimension {:} in set {:} does not match the defined job dimension of {:} in job '{:}'. Consider using the 'fillMissingValuesTo' option for the export entry.".format(
-                        setVariableDimensions, setName, exportJob.dimensions, exportJob.exportName
+                        setVariableDimensions,
+                        setName,
+                        exportJob.dimensions,
+                        exportJob.exportName,
                     )
                 )
 
             partsDict[elSet.ensightPartID] = ("coordinates", results)
 
         if partsDict or exportJob.writeEmptyTimeSteps:
-            return es.EnsightPerNodeVariable(exportJob.exportName, exportJob.dimensions, partsDict)
+            return es.EnsightPerNodeVariable(
+                exportJob.exportName, exportJob.dimensions, partsDict
+            )
         else:
             return None
 
@@ -530,7 +647,9 @@ class ExportEngine:
             location = perSetJobEntry.location
             which = perSetJobEntry.which
 
-            incrementVariableResults = self.currentIncrement["elementResults"][result][setName]
+            incrementVariableResults = self.currentIncrement["elementResults"][result][
+                setName
+            ]
             incrementVariableResultsArrays = {}
 
             print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
@@ -538,12 +657,16 @@ class ExportEngine:
             for ensElType, elDict in incrementVariableResults.items():
                 try:
                     results = np.asarray(
-                        [elDict[el.label][location][which] for el in elSet.elements[ensElType]], dtype=float
+                        [
+                            elDict[el.label][location][which]
+                            for el in elSet.elementsByShape[ensElType]
+                        ],
+                        dtype=float,
                     )
                 except:
                     raise Exception(
-                        "Failed to retrieve result '{:}' in '{:}' for set {:}. Does it exist?".format(
-                            which, location, setName
+                        "Failed to retrieve result '{:}' in '{:}/{:}' for set {:}. Does it exist?".format(
+                            result, location, which, setName
                         )
                     )
 
@@ -551,8 +674,12 @@ class ExportEngine:
                     results = results[:, perSetJobEntry.offset :]
 
                 if perSetJobEntry.extractionFunction:
-                    results = np.apply_along_axis(perSetJobEntry.extractionFunction, axis=1, arr=results)
-                    results = np.reshape(results, (results.shape[0], -1))  # ensure that dimensions are kept
+                    results = np.apply_along_axis(
+                        perSetJobEntry.extractionFunction, axis=1, arr=results
+                    )
+                    results = np.reshape(
+                        results, (results.shape[0], -1)
+                    )  # ensure that dimensions are kept
 
                 if perSetJobEntry.extractionSlice:
                     results = results[:, perSetJobEntry.extractionSlice]
@@ -563,7 +690,10 @@ class ExportEngine:
             if setVariableDimensions != exportJob.dimensions:
                 raise Exception(
                     "Variable dimension {:} in set {:} does not match the defined job dimension of {:} in job '{:}'. Consider using the 'fillMissingValuesTo' option for the export entry.".format(
-                        setVariableDimensions, setName, exportJob.dimensions, exportJob.exportName
+                        setVariableDimensions,
+                        setName,
+                        exportJob.dimensions,
+                        exportJob.exportName,
                     )
                 )
 
@@ -616,7 +746,9 @@ class ExportEngine:
         qp = self.currentIpt
         currentElementNum = self.currentElementNum
 
-        targetLocation = currentIncrement["elementResults"][result][currentSetName][currentEnsightElementType]
+        targetLocation = currentIncrement["elementResults"][result][currentSetName][
+            currentEnsightElementType
+        ]
 
         if qp not in targetLocation[currentElementNum]["qps"]:
             targetLocation[currentElementNum]["qps"][qp] = res
@@ -642,17 +774,11 @@ class ExportEngine:
         if coords.shape[0] < 3:
             coords = np.pad(coords, (0, 3 - coords.shape[0]), mode="constant")
 
-
         if label in self.allNodes:
             print("Node {:} already exists!".format(label))
             exit(0)
 
         self.allNodes[label] = Node(label, coords)
-
-        # node = self.allNodes[label]
-        # node.label = label
-
-        # node.coords = coords
 
     def addElement(self, recordContent):
         elNum = filInt(recordContent[0])[0]
@@ -662,10 +788,11 @@ class ExportEngine:
         nodes = [n for n in elabqNodes]
 
         if elType in self.ignoreLastNodesForElType:
-            nodes = nodes[0:-self.ignoreLastNodesForElType[elType]]
+            nodes = nodes[0 : -self.ignoreLastNodesForElType[elType]]
 
-        self.allElements[elNum] = Element(
-            elNum, self.ensightElementTypeMappings[elType], nodes)
+        self.elementDefinitions[elNum] = ElementDefinition(
+            elNum, self.ensightElementTypeMappings[elType], nodes
+        )
 
     def addElset(self, recordContent):
         setName = filStrippedString(recordContent[0])
@@ -676,13 +803,17 @@ class ExportEngine:
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
 
-        self.elSets[setName] = ElSet(setName, [self.allElements[e] for e in abqElements])
+        self.elSetDefinitions[setName] = ElSetDefinition(
+            setName, [e for e in abqElements]
+        )
 
     def contAddElset(self, recordContent):
         abqElements = filInt(recordContent)
-        self.elSets[self.currentSetName].appendElements([self.allElements[e] for e in abqElements])
+        self.elSetDefinitions[self.currentSetName].appendElementLabels(
+            [e for e in abqElements]
+        )
 
-    def addNodeset(self, recordContent):
+    def createNodeSetDefinition(self, recordContent):
         setName = filStrippedString(recordContent[0])
 
         if not setName:
@@ -693,12 +824,14 @@ class ExportEngine:
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
 
-        self.nSets[setName] = NSet(setName, [n for n in abqNodes])
+        self.nSetDefinitions[setName] = NSetDefinition(setName, [n for n in abqNodes])
 
-    def contAddNodeset(self, recordContent):
+    def contNodeSetDefinition(self, recordContent):
         abqNodes = filInt(recordContent)
-       # self.nSets[self.currentSetName].appendNodes([self.allNodes[n] for n in abqNodes])
-        self.nSets[self.currentSetName].appendNodes([n for n in abqNodes])
+        # self.nSets[self.currentSetName].appendNodes([self.allNodes[n] for n in abqNodes])
+        self.nSetDefinitions[self.currentSetName].appendNodeLabels(
+            [n for n in abqNodes]
+        )
 
     def addIncrement(self, recordContent):
         self.currentState = "increment parsing"
@@ -716,7 +849,11 @@ class ExportEngine:
         currentIncrement["elementResults"] = RecursiveDefaultDict()
         currentIncrement["nodeResults"] = RecursiveDefaultDict()
         print("*" * 80)
-        print("processing increment {:>5}  tTotal:{:>16.5f}".format(self.nIncrements, self.currentIncrement["tTotal"]))
+        print(
+            "processing increment {:>5}  tTotal:{:>16.5f}".format(
+                self.nIncrements, self.currentIncrement["tTotal"]
+            )
+        )
 
     def addLabelCrossReference(self, recordContent):
         r = recordContent

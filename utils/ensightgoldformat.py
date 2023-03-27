@@ -24,7 +24,12 @@ def writeC80(f, string):
     np.asarray(string, dtype="a80").tofile(f)
 
 
-ensightPerNodeVariableTypes = {1: "scalar per node", 3: "vector per node", 6: "tensor6 per node", 9: "tensor9 per node"}
+ensightPerNodeVariableTypes = {
+    1: "scalar per node",
+    3: "vector per node",
+    6: "tensor6 per node",
+    9: "tensor9 per node",
+}
 
 ensightPerElementVariableTypes = {
     1: "scalar per element",
@@ -47,7 +52,9 @@ class EnsightUnstructuredPart:
         self.description = description
         self.partNumber = partNumber
 
-    def writeToFile(self, binaryFileHandle, printNodeLabels=True, printElementLabels=True):
+    def writeToFile(
+        self, binaryFileHandle, printNodeLabels=True, printElementLabels=True
+    ):
         nNodes = self.nodes.shape[0]
         f = binaryFileHandle  # shortcut to functions
 
@@ -77,7 +84,12 @@ class EnsightTimeSet:
     """defines a set which may be used by EnsightGeometry, EnsightStructuredPart, EnsightUnstructuredPart and is written into the case file"""
 
     def __init__(
-        self, number=1, description="timeStepDesc", fileNameStartNumber=0, fileNameNumberIncrement=1, timeValues=None
+        self,
+        number=1,
+        description="timeStepDesc",
+        fileNameStartNumber=0,
+        fileNameNumberIncrement=1,
+        timeValues=None,
     ):
         self.number = number
         self.description = description
@@ -140,7 +152,9 @@ class EnsightVariableTrend:
     ):
         self.timeSet = ensightTimeSet
         self.variableName = variableName
-        self.variableList = ensightVariableList if ensightVariableList is not None else []
+        self.variableList = (
+            ensightVariableList if ensightVariableList is not None else []
+        )
         self.variableType = variableType
         self.description = description
 
@@ -148,12 +162,15 @@ class EnsightVariableTrend:
 class EnsightPerNodeVariable:
     """container class for data for one certain variable, defined for one or more parts (classification by partID), at a certain time state.
     For each part the structuretype ("coordinate" or "block") has to be defined.
-    Each part-variable assignment is defined by a dictionary entry of type: { EnsightPart: np.array(variableValues) }"""
+    Each part-variable assignment is defined by a dictionary entry of type: { EnsightPart: np.array(variableValues) }
+    """
 
     def __init__(self, name, variableDimension, ensightPartsDict=None):
         self.name = name
         self.description = name
-        self.partsDict = ensightPartsDict or {}  # { EnsightPart: np.array(variableValues) }
+        self.partsDict = (
+            ensightPartsDict or {}
+        )  # { EnsightPart: np.array(variableValues) }
         self.variableDimension = variableDimension
         self.varType = ensightPerNodeVariableTypes[variableDimension]
 
@@ -169,13 +186,19 @@ class EnsightPerNodeVariable:
             writeC80(f, structureType)
             writeCFloat(f, values.T)
             if values.shape[1] < self.variableDimension:
-                writeCFloat(f, np.zeros((values.shape[0], self.variableDimension - values.shape[1])))
+                writeCFloat(
+                    f,
+                    np.zeros(
+                        (values.shape[0], self.variableDimension - values.shape[1])
+                    ),
+                )
 
 
 class EnsightPerElementVariable:
     """container class for data for one certain variable, defined for one or more parts (classification by partID), at a certain time state.
     For each part the structuretype ("coordinate" or "block") has to be defined.
-    Each part-variable assignment is defined by a dictionary entry of type: { EnsightPart: np.array(variableValues) }"""
+    Each part-variable assignment is defined by a dictionary entry of type: { EnsightPart: np.array(variableValues) }
+    """
 
     def __init__(
         self,
@@ -185,7 +208,9 @@ class EnsightPerElementVariable:
     ):
         self.name = name
         self.description = name
-        self.partsDict = ensightPartsDict or {}  # { EnsightPart: np.array(variableValues) }
+        self.partsDict = (
+            ensightPartsDict or {}
+        )  # { EnsightPart: np.array(variableValues) }
         self.varType = ensightPerElementVariableTypes[variableDimension]
         self.variableDimension = variableDimension
 
@@ -199,7 +224,12 @@ class EnsightPerElementVariable:
                 writeC80(f, elType)
                 writeCFloat(f, values.T)
                 if values.shape[1] < self.variableDimension:
-                    writeCFloat(f, np.zeros((values.shape[0], self.variableDimension - values.shape[1])))
+                    writeCFloat(
+                        f,
+                        np.zeros(
+                            (values.shape[0], self.variableDimension - values.shape[1])
+                        ),
+                    )
 
 
 class EnsightChunkWiseCase:
@@ -220,11 +250,20 @@ class EnsightChunkWiseCase:
     def writeGeometryTrendChunk(self, ensightGeometry, timeAndFileSetNumber=1):
         if timeAndFileSetNumber != None:
             if not timeAndFileSetNumber in self.timeAndFileSets:
-                self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(timeAndFileSetNumber, "timeset", 0, 1)
-                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
+                self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(
+                    timeAndFileSetNumber, "timeset", 0, 1
+                )
+                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
+                    self.currentTime
+                )
 
-            elif self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]:
-                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
+            elif (
+                self.currentTime
+                > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]
+            ):
+                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
+                    self.currentTime
+                )
 
         if ensightGeometry.name not in self.fileHandles:
             fileName = ("{:}" * 3).format(
@@ -247,20 +286,33 @@ class EnsightChunkWiseCase:
 
     def writeVariableTrendChunk(self, ensightVariable, timeAndFileSetNumber=2):
         if not timeAndFileSetNumber in self.timeAndFileSets:
-            self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(timeAndFileSetNumber, "timeset", 0, 1)
-            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
+            self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(
+                timeAndFileSetNumber, "timeset", 0, 1
+            )
+            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
+                self.currentTime
+            )
 
-        elif self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]:
-            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
+        elif (
+            self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]
+        ):
+            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
+                self.currentTime
+            )
 
         if ensightVariable.name not in self.fileHandles:
-            fileName = ("{:}" * 3).format(self.caseFileNamePrefix, ensightVariable.name, ".var")
+            fileName = ("{:}" * 3).format(
+                self.caseFileNamePrefix, ensightVariable.name, ".var"
+            )
             self.fileHandles[ensightVariable.name] = open(fileName, mode="wb")
 
         f = self.fileHandles[ensightVariable.name]
 
         if not ensightVariable.name in self.variableTrends:
-            self.variableTrends[ensightVariable.name] = timeAndFileSetNumber, ensightVariable.varType
+            self.variableTrends[ensightVariable.name] = (
+                timeAndFileSetNumber,
+                ensightVariable.varType,
+            )
             writeC80(f, "C Binary")
 
         if self.writeTransientSingleFiles:
@@ -282,8 +334,12 @@ class EnsightChunkWiseCase:
             for setNum, timeSet in self.timeAndFileSets.items():
                 cf.write("time set: " + str(setNum) + " noDesc\n")
                 cf.write("number of steps: " + str(len(timeSet.timeValues)) + "\n")
-                cf.write("filename start number: " + str(timeSet.fileNameStartNumber) + "\n")
-                cf.write("filename increment: " + str(timeSet.fileNameNumberIncrement) + "\n")
+                cf.write(
+                    "filename start number: " + str(timeSet.fileNameStartNumber) + "\n"
+                )
+                cf.write(
+                    "filename increment: " + str(timeSet.fileNameNumberIncrement) + "\n"
+                )
                 cf.write("time values: ")
                 for i, timeVal in enumerate(timeSet.timeValues):
                     if discardTimeMarks:
@@ -299,12 +355,23 @@ class EnsightChunkWiseCase:
 
             cf.write("GEOMETRY\n")
             for geometryName, tAndFSetNum in self.geometryTrends.items():
-                cf.write("model: {:} \n".format(self.caseFileNamePrefix + geometryName + ".geo"))
+                cf.write(
+                    "model: {:} \n".format(
+                        self.caseFileNamePrefix + geometryName + ".geo"
+                    )
+                )
 
             cf.write("VARIABLE\n")
-            for variableName, (tAndFSetNum, variableType) in self.variableTrends.items():
+            for variableName, (
+                tAndFSetNum,
+                variableType,
+            ) in self.variableTrends.items():
                 cf.write(
                     "{:}: {:} {:} {:} {:}.var\n".format(
-                        variableType, tAndFSetNum, tAndFSetNum, variableName, self.caseFileNamePrefix + variableName
+                        variableType,
+                        tAndFSetNum,
+                        tAndFSetNum,
+                        variableName,
+                        self.caseFileNamePrefix + variableName,
                     )
                 )
