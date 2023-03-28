@@ -10,7 +10,7 @@ import sys
 import os
 import numpy as np
 import math
-import utils.exportEngine as eE
+from utils.exportEngine import ExportEngine, filInt
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
 
@@ -37,7 +37,9 @@ def getCurrentFileSize(
 
 def getCurrentMaxIdxEnd(fn, fileIdx):
     fileRemainder = fileSize - fileIdx  # remaining file size in BYTES
-    idxEnd = fileIdx + (FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder)  # get end index
+    idxEnd = fileIdx + (
+        FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder
+    )  # get end index
     # in case we are operating on an unfinished file and 'catch' an unfinished chunk
     idxEnd -= idxEnd % FIL_CHUNKSIZE
     return idxEnd
@@ -75,7 +77,7 @@ if __name__ == "__main__":
     print("{:<20}{:>60}".format("opening file", fn))
     print("*" * 80)
 
-    exportEngine = eE.ExportEngine(exportJobs, exportName)
+    exportEngine = ExportEngine(exportJobs, exportName)
 
     fileSize = getCurrentFileSize(fn)
     numberOfBatchSteps = math.ceil(fileSize / FIL_BATCHSIZE)
@@ -98,9 +100,11 @@ if __name__ == "__main__":
                 words = getWords(fn, fileIdx, idxEnd)
 
                 while wordIdx < len(words):
-                    recordLength = eE.filInt(words[wordIdx])[0]
+                    recordLength = filInt(words[wordIdx])[0]
                     if recordLength <= 2:
-                        print("found a record with 0 length content, possible an aborted Abaqus analysis")
+                        print(
+                            "found a record with 0 length content, possible an aborted Abaqus analysis"
+                        )
                         if os.path.exists(lockFile):
                             print("found .lck file, waiting for new result .fil data")
                             time.sleep(5)
@@ -118,12 +122,20 @@ if __name__ == "__main__":
                     # - set the wordIdx to the end of the so far progressed frame
                     # - move the frame to the wordIDx
                     if wordIdx + recordLength > len(words):
-                        bytesProgressedInCurrentBatch = int(math.floor(wordIdx / 512)) * 513 * 8
+                        bytesProgressedInCurrentBatch = (
+                            int(math.floor(wordIdx / 512)) * 513 * 8
+                        )
 
-                        if bytesProgressedInCurrentBatch == 0:  # indicator for an aborted analysis
-                            print("terminated file, possible an aborted Abaqus analysis")
+                        if (
+                            bytesProgressedInCurrentBatch == 0
+                        ):  # indicator for an aborted analysis
+                            print(
+                                "terminated file, possible an aborted Abaqus analysis"
+                            )
                             if os.path.exists(lockFile):
-                                print("found .lck file, waiting for new result .fil data")
+                                print(
+                                    "found .lck file, waiting for new result .fil data"
+                                )
                                 time.sleep(5)
 
                                 fileSize = getCurrentFileSize(
@@ -138,12 +150,16 @@ if __name__ == "__main__":
                                 break
 
                         fileIdx += bytesProgressedInCurrentBatch  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
-                        wordIdx = wordIdx % 512  # of course, restart at the present index
+                        wordIdx = (
+                            wordIdx % 512
+                        )  # of course, restart at the present index
                         break
 
-                    recordType = eE.filInt(words[wordIdx + 1])[0]
+                    recordType = filInt(words[wordIdx + 1])[0]
                     recordContent = words[wordIdx + 2 : wordIdx + recordLength]
-                    success = exportEngine.computeRecord(recordLength, recordType, recordContent)
+                    success = exportEngine.computeRecord(
+                        recordLength, recordType, recordContent
+                    )
                     wordIdx += recordLength
 
                 # clean finish of a batchChunk
@@ -154,7 +170,9 @@ if __name__ == "__main__":
 
             else:
                 if os.path.exists(lockFile):
-                    print("found .lck file, waiting for new result .fil data or CTRL-C to finish...")
+                    print(
+                        "found .lck file, waiting for new result .fil data or CTRL-C to finish..."
+                    )
                     time.sleep(10)
                 else:
                     break
@@ -167,10 +185,14 @@ if __name__ == "__main__":
 
     print("*" * 80)
     print("Summary of .fil file:")
-    print("{:<60}{:>20}".format("nodes:", len(exportEngine.allNodes)))
-    print("{:<60}{:>20}".format("elements:", len(exportEngine.allElements)))
+    print("{:<60}{:>20}".format("nodes:", len(exportEngine.nodes)))
+    print("{:<60}{:>20}".format("elements:", len(exportEngine.elements)))
     print("{:<60}{:>20}".format("element sets:", len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
-        for elType, elements in elSet.elements.items():
-            print("{:<4}{:<46}{:10}{:>11} elements".format(" ", setName, elType, len(elements)))
+        for elType, elements in elSet.elementsByShape.items():
+            print(
+                "{:<4}{:<46}{:10}{:>11} elements".format(
+                    " ", setName, elType, len(elements)
+                )
+            )
     print("{:<60}{:>20}".format("increments:", exportEngine.nIncrements))

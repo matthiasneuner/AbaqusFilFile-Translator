@@ -10,14 +10,40 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import numpy as np
 from collections import defaultdict
-import utils.ensightgoldformat as es
+from utils.ensightExporter import EnsightExporter
 
 
-def filInt(word):
+def filInt(word: np.ndarray):
+    """Convert a. fil word to a 8 byte integer.
+
+    Parameters
+    ----------
+    word
+        The fil word.
+
+    Returns
+    -------
+    type
+        The integer.
+    """
+
     return word.view("<i8").ravel()
 
 
 def filString(word):
+    """Convert a. fil word to string.
+
+    Parameters
+    ----------
+    word
+        The fil word.
+
+    Returns
+    -------
+    type
+        The string.
+    """
+
     return word.view("a8")
 
 
@@ -26,159 +52,272 @@ def filStrippedString(word):
 
 
 def filDouble(word):
+    """Convert a. fil word to double precision float.
+
+    Parameters
+    ----------
+    word
+        The fil word.
+
+    Returns
+    -------
+    type
+        The float.
+    """
+
     return word.view("<d").ravel()
 
 
 def filFlag(word):
+    """Convert a. fil word to a flag.
+
+    Parameters
+    ----------
+    word
+        The fil word.
+
+    Returns
+    -------
+    type
+        The flag.
+    """
+
     return word[0:4].view("<i")[0]
-
-
-def makeExtractionFunction(expression, symbol="x"):
-    """make a simple f(x) expression from string"""
-    return lambda x: eval(expression, globals(), {symbol: x})
-
-
-def sliceFromString(string, shift=0):
-    """generate a slice from a string, which can represent a slice or an index"""
-    if ":" in string:
-        a, b = string.split(":")
-        return slice(int(a) + shift, int(b) + shift)
-    else:
-        return slice(int(string) + shift, int(string) + 1 + shift)
 
 
 def RecursiveDefaultDict():
     return defaultdict(RecursiveDefaultDict)
-    # return dict()
+
+
+class ElementDefinition:
+    def __init__(self, label: int, elementType: str, nodeLabels: list[int]):
+        """A description of an element, not a discrete instance.
+
+        Parameters
+        ----------
+        label
+            The label of the element.
+        elementType
+            The shape of the element.
+        nodeLabels
+            The list of node labels for this element.
+        """
+
+        self.label = label
+        self.shape = elementType
+        self.nodeLabels = nodeLabels
+
+
+class ElSetDefinition:
+    def __init__(self, name: str, elementLabels: list[int]):
+        """A description of an element set, not a discrete instance.
+
+        Parameters
+        ----------
+        name
+            The name of the set.
+        elementLabels
+            The list of element labels for this set.
+        """
+
+        self.name = name
+        self.elementLabels = []
+        self.appendElementLabels(elementLabels)
+
+    def appendElementLabels(self, elementLabels: list[int]):
+        """Add more element labels to the set description.
+
+        Parameters
+        ----------
+        elementLabels
+            The list of element labels to be added.
+        """
+
+        self.elementLabels += elementLabels
 
 
 class Node:
-    def __init__(self, label=None, coords=None):
+    def __init__(self, label: int, coords: np.array):
+        """A spatial node.
+
+        Parameters
+        ----------
+        label
+            The label of this node.
+        coords
+            The coordinates of this node.
+        """
+
         self.label = label
         self.coords = coords
 
 
 class Element:
-    def __init__(self, label, shape, nodes):
+    def __init__(self, label: int, shape: str, nodes: list[Node]):
+        """A discrete element instance.
+
+        Parameters
+        ----------
+        label
+            The label of this element.
+        shape
+            The shape of this element.
+        nodes
+            The list of nodes.
+        """
+
         self.label = label
         self.shape = shape
         self.nodes = nodes
 
 
 class ElSet:
-    def __init__(self, name, elements, ensightPartID=None):
+    def __init__(self, name: str, elements: list[Element]):
+        """A discrete element set instance.
+
+        Parameters
+        ----------
+        name
+            The name of this set.
+        elements
+            The list of elements in this set.
+        ensightPartID
+            The ensight ID.
+        """
+
         self.name = name
-        self.ensightPartID = ensightPartID
+        # self.ensightPartID = ensightPartID
 
-        self.elements = defaultdict(list)
-        self.appendElements(elements)
+        self.elementsByShape = defaultdict(list)
 
-        self._elementLabels = None
-        self._reducedNodes = None
-        self._reducedElements = None
-        self._reducedNodeCoords3D = None
-
-    def appendElements(self, elements):
         for element in elements:
-            self.elements[element.shape].append(element)
+            self.elementsByShape[element.shape].append(element)
 
-    def getEnsightCompatibleReducedNodes(
+        self.reducedNodes = self._getEnsightCompatibleReducedNodes()
+        self.reducedNodeIndices = self._getEnsightCompatibleElementNodeIndices()
+        self.reducedElements = self._getEnsightCompatibleElements()
+        self.reducedNodeCoords3D = self._getEnsightCompatibleReducedNodeCoords()
+
+    def _getEnsightCompatibleReducedNodes(
         self,
     ):
-        self._reducedNodes = dict(
+        reducedNodes = dict(
             [
-                (node.label, node)
-                for elementsByShape in self.elements.values()
+                (node.label, node)  # (node, self.allNodes[node])
+                for elementsByShape in self.elementsByShape.values()
                 for element in elementsByShape
                 for node in element.nodes
             ]
         )
-        return self._reducedNodes
 
-    def getEnsightCompatibleReducedNodeCoords(
+        return reducedNodes
+
+    def _getEnsightCompatibleReducedNodeCoords(
         self,
     ):
-        self._reducedNodeCoords3D = np.asarray(
-            [node.coords for node in self.getEnsightCompatibleReducedNodes().values()]
+        reducedNodeCoords3D = np.asarray(
+            [node.coords for node in self.reducedNodes.values()]
         )
-        return self._reducedNodeCoords3D
 
-    def getEnsightCompatibleElementNodeIndices(
+        return reducedNodeCoords3D
+
+    def _getEnsightCompatibleElementNodeIndices(
         self,
     ):
-        self._reducedNodeIndices = {node: i for (i, node) in enumerate(self.getEnsightCompatibleReducedNodes().keys())}
-        self._reducedElements = dict()
-        for eShape, elements in self.elements.items():
-            self._reducedElements[eShape] = [
-                (e.label, [self._reducedNodeIndices[n.label] for n in e.nodes]) for e in elements
+        reducedNodeIndices = {
+            node: i for (i, node) in enumerate(self.reducedNodes.keys())
+        }
+        return reducedNodeIndices
+
+    def _getEnsightCompatibleElements(
+        self,
+    ):
+        reducedElements = dict()
+
+        for eShape, elements in self.elementsByShape.items():
+            reducedElements[eShape] = [
+                (e.label, [self.reducedNodeIndices[n.label] for n in e.nodes])
+                for e in elements
             ]
-        return self._reducedElements
+        return reducedElements
+
+
+class NSetDefinition:
+    def __init__(self, name: str, nodeLabels: list[int]):
+        """A description of a node set, not a discrete instance.
+
+        Parameters
+        ----------
+        name
+            The name of the set.
+        nodeLabels
+            The list of node labels for this set.
+        """
+        self.name = name
+        self.nodeLabels = nodeLabels
+
+    def appendNodeLabels(self, nodeLabels: list[int]):
+        """Add more node labels to this set
+
+        Parameters
+        ----------
+        nodeLabels
+            The list of node labels to be added.
+        """
+        self.nodeLabels += nodeLabels
 
 
 class NSet:
     def __init__(self, name, nodes):
+        """A discrete node set instance.
+
+        Parameters
+        ----------
+        name
+            The name of this set.
+        nodes
+            The list of nodes in this set.
+        """
         self.name = name
         self.nodes = nodes
 
-    def appendNodes(self, nodes):
-        self.nodes += nodes
-
-
-class EnsightExportJob:
-    def __init__(self, name, dimensions, timeSetID, writeEmptyTimeSteps=True):
-        self.exportName = name
-        self.dimensions = dimensions
-        self.timeSetID = timeSetID
-        self.entries = {}
-        self.writeEmptyTimeSteps = writeEmptyTimeSteps
-
-
-class EnsightPerSetJobEntry:
-    def __init__(
-        self,
-        job,
-        setName,
-        result,
-        location,
-        which,
-        extractionSlice=None,
-        extractionFunction=None,
-        offset=None,
-        fillMissingValuesTo=None,
-    ):
-        self.job = job
-        self.setName = setName
-        self.extractionSlice = extractionSlice
-        self.extractionFunction = extractionFunction
-        self.offset = offset
-        self.result = result
-        self.location = location
-        self.which = which
-        self.fillMissingValuesTo = fillMissingValuesTo if fillMissingValuesTo is None else float(fillMissingValuesTo)
-
 
 class ExportEngine:
-    def __init__(self, exportJobs, caseName):
-        self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(exportJobs["*UELSDVToQuadraturePoints"])
-        self.qpAverageJobs = self.collectQpAverageJobs(exportJobs["*computeAverageOverQuadraturePoints"])
+    def __init__(self, inputFile: dict, exportName: str):
+        """This is the export engine. It parses a .fil file record wise,
+        and exports results based on user defined jobs.
 
-        self.perElementJobs = self.collectExportJobs(exportJobs["*ensightPerElementVariableJob"])
-        self.perNodeJobs = self.collectExportJobs(exportJobs["*ensightPerNodeVariableJob"])
+        Parameters
+        ----------
+        inputFile
+            The dictionary containing the input file.
+        exportName
+            The export name.
+        """
 
-        self.perElementJobs = self.collectPerElementJobEntries(
-            exportJobs["*ensightPerElementVariableJobEntry"],
-            self.perElementJobs,
+        self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(
+            inputFile["*UELSDVToQuadraturePoints"]
         )
-        self.perNodeJobs = self.collectPerNodeJobEntries(
-            exportJobs["*ensightPerNodeVariableJobEntry"],
-            self.perNodeJobs,
+        self.qpAverageJobs = self.collectQpAverageJobs(
+            inputFile["*computeAverageOverQuadraturePoints"]
         )
 
-        self.ensightElementTypeMappings = {x["element"]: x["shape"] for x in exportJobs["*defineElementType"]}
+        self.ignoreLastNodesForElType = {
+            x["element"]: x["number"]
+            for x in inputFile["*ignoreLastNodesForElementType"]
+        }
 
-        self.allNodes = defaultdict(Node)
+        self.ensightExporter = EnsightExporter(exportName, inputFile)
 
-        self.allElements = {}
+        self.nodes = {}
+        # add a default node, to which abaqus falls back if it creates node in place (e.g, for hex27 elements in contact)
+        self.nodes[0] = Node(0, np.array([0.0, 0.0, 0.0]))
+
+        self.elementDefinitions = {}
+        self.elSetDefinitions = {}
+        self.nSetDefinitions = {}
+
+        self.elements = {}
         self.nSets = {}
         self.elSets = {}
 
@@ -190,48 +329,100 @@ class ExportEngine:
         self.nIncrements = 0
         self.timeHistory = []
         self.labelCrossReferences = {}
-        self.ensightCase = es.EnsightChunkWiseCase(".", caseName)
-        self.ensightCaseDiscardTimeMarks = False
 
         self.knownRecords = {
-            1: ("Element header record", self.elementHeaderRecord),
-            5: ("SDV output", lambda x: self.handlePerElementOutput(x, "SDV")),
-            11: ("S output", lambda x: self.handlePerElementOutput(x, "S")),
-            21: ("E output", lambda x: self.handlePerElementOutput(x, "E")),
-            22: ("PE output", lambda x: self.handlePerElementOutput(x, "PE")),
-            101: ("U output", lambda x: self.handlePerNodeOutput(x, "U")),
-            102: ("V output", lambda x: self.handlePerNodeOutput(x, "V")),
-            103: ("A output", lambda x: self.handlePerNodeOutput(x, "A")),
-            104: ("RF output", lambda x: self.handlePerNodeOutput(x, "RF")),
-            201: ("NT output", lambda x: self.handlePerNodeOutput(x, "NT")),
-            1501: ("Surface definition header", self.surfaceDefHeader),
+            1: ("Element header record", self._elementHeaderRecord),
+            5: ("SDV output", lambda x: self._handlePerElementOutput(x, "SDV")),
+            11: ("S output", lambda x: self._handlePerElementOutput(x, "S")),
+            21: ("E output", lambda x: self._handlePerElementOutput(x, "E")),
+            22: ("PE output", lambda x: self._handlePerElementOutput(x, "PE")),
+            101: ("U output", lambda x: self._handlePerNodeOutput(x, "U")),
+            102: ("V output", lambda x: self._handlePerNodeOutput(x, "V")),
+            103: ("A output", lambda x: self._handlePerNodeOutput(x, "A")),
+            104: ("RF output", lambda x: self._handlePerNodeOutput(x, "RF")),
+            201: ("NT output", lambda x: self._handlePerNodeOutput(x, "NT")),
+            1501: ("Surface definition header", self._surfaceDefHeader),
             1502: ("Surface facet", lambda x: None),
-            1900: ("element definition", self.addElement),
-            1901: ("node definition", self.addNode),
+            1900: ("element definition", self._addElementDefinition),
+            1901: ("node definition", self._addNode),
             1902: ("active dof", lambda x: None),
-            1911: ("output request definition", self.outputDefinition),
+            1911: ("output request definition", self._outputDefinition),
             1921: ("heading", lambda x: None),
             1922: ("heading", lambda x: None),
-            1931: ("node set definition", self.addNodeset),
-            1932: ("node set definition cont.", self.contAddNodeset),
-            1933: ("element set definition", self.addElset),
-            1934: ("element set definition cont.", self.contAddElset),
-            1940: ("label cross reference", self.addLabelCrossReference),
-            2000: ("start increment", self.addIncrement),
-            2001: ("end increment", self.finishAndParseIncrement),
+            1931: ("node set definition", self._createNodeSetDefinition),
+            1932: ("node set definition cont.", self._contNodeSetDefinition),
+            1933: ("element set definition", self._addElsetDefinition),
+            1934: ("element set definition cont.", self._contAddElset),
+            1940: ("label cross reference", self._addLabelCrossReference),
+            2000: ("start increment", self._addIncrement),
+            2001: ("end increment", self._finishAndParseIncrement),
         }
 
-    def computeRecord(self, recordLength, recordType, recordContent):
+    def computeRecord(
+        self, recordLength: int, recordType: int, recordContent: np.ndarray
+    ):
+        """The main function of the export engine. It computes a .fil file record.
+
+        Parameters
+        ----------
+        recordLength
+            The length of the .fil record content.
+        recordType
+            The unique integer defining the type of record according to the Abaqus documentation.
+        recordContent
+            The data of the .fil record.
+
+        Returns
+        -------
+        bool
+            Success of the record computation.
+        """
+
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]
             action(recordContent)
             return True
         else:
-            print("{:<20}{:>6}{:>10}{:>4}".format("unknown record:", recordType, " of length", recordLength))
+            print(
+                "{:<20}{:>6}{:>10}{:>4}".format(
+                    "unknown record:", recordType, " of length", recordLength
+                )
+            )
             return False
 
-    def finishAndParseIncrement(self, recordContent):
+    def _finishAndParseIncrement(self, recordContent: np.ndarray):
+        """A .fil increment (or the model setup) is finished. Time to write results and geometry!
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. It is empty.
+        """
+
         if self.currentState == "model setup":
+            # we always create the 'ALL' set
+            ALLSet = ElSetDefinition("ALL", list(self.elementDefinitions.keys()))
+            self.elSetDefinitions["ALL"] = ALLSet
+
+            # Time to create Elements, ElSets and NodeSets from the definitions!
+            for elDef in self.elementDefinitions.values():
+                self.elements[elDef.label] = Element(
+                    elDef.label,
+                    elDef.shape,
+                    [self.nodes[label] for label in elDef.nodeLabels],
+                )
+
+            for elSetDef in self.elSetDefinitions.values():
+                self.elSets[elSetDef.name] = ElSet(
+                    elSetDef.name,
+                    [self.elements[label] for label in elSetDef.elementLabels],
+                )
+
+            for nSetDef in self.nSetDefinitions.values():
+                self.nSets[nSetDef.name] = NSet(
+                    nSetDef.name, [self.nodes[n] for n in nSetDef.nodeLabels]
+                )
+
             # replace all label references by the respective labels
             for key, label in self.labelCrossReferences.items():
                 strKey = key  # str(key)
@@ -244,47 +435,48 @@ class ExportEngine:
                     self.elSets[label].name = label
                     del self.elSets[strKey]
 
-            geometryTimesetNumber = None
-            geometry = self.createEnsightGeometryFromModel()
-            self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
+            self.ensightExporter.setupModel(
+                self.nodes, self.nSets, self.elements, self.elSets
+            )
+            self.ensightExporter.exportGeometry()
 
         elif self.currentState == "surface definition":
             pass
 
         elif self.currentState == "increment parsing":
             self.nIncrements += 1
-            self.ensightCase.setCurrentTime(self.currentIncrement["tTotal"])
+            self.ensightExporter.setCurrentTime(self.currentIncrement["tTotal"])
             self.timeHistory.append(self.currentIncrement["tTotal"])
 
             print("*" * 80)
-            print("increment contained element results for")
+            print("increment contains element results for")
             print(
                 "\n".join(
                     [
-                        " {:5} [{:}]".format(resName, ", ".join([s for s in resEntries]))
-                        for resName, resEntries in self.currentIncrement["elementResults"].items()
+                        " {:5} [{:}]".format(
+                            resName, ", ".join([s for s in resEntries])
+                        )
+                        for resName, resEntries in self.currentIncrement[
+                            "elementResults"
+                        ].items()
                     ]
                 )
             )
             print("")
-            print("increment contained node results for")
+            print("increment contains node results for")
             print(
                 "\n".join(
                     [
                         " {:5} [{:10} nodes]".format(resName, len(resEntries))
-                        for resName, resEntries in self.currentIncrement["nodeResults"].items()
+                        for resName, resEntries in self.currentIncrement[
+                            "nodeResults"
+                        ].items()
                     ]
                 )
             )
             print("")
 
             print("exporting...")
-
-            for exportJob in self.perNodeJobs.values():
-                enSightVar = self.createEnsightPerNodeVariableFromPerNodeJob(exportJob)
-                if enSightVar:
-                    self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
-                    del enSightVar
 
             # operate on elemetal results (e.g. compute average over quadraturePoint )
             for uelSdvToQpJob in self.uelSdvToQpJobs:
@@ -293,15 +485,19 @@ class ExportEngine:
             for qpAverageJob in self.qpAverageJobs:
                 self.computeQpAverage(qpAverageJob)
 
-            for exportJob in self.perElementJobs.values():
-                enSightVar = self.createEnsightPerElementVariableFromPerElementJob(exportJob)
-                if enSightVar:
-                    self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
-                    del enSightVar
+            self.ensightExporter.exportPerNodeVariables(
+                self.currentIncrement["nodeResults"]
+            )
+            self.ensightExporter.exportPerElementVariables(
+                self.currentIncrement["elementResults"]
+            )
 
             if self.nIncrements % 10 == 0:
                 # intermediate saving ...
-                self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks, closeFileHandles=False)
+
+                self.ensightExporter.finalize(
+                    closeFileHandles=False,
+                )
 
             # data might consume a lot of memory, so we delete it (explicitly)
             del self.currentIncrement
@@ -309,37 +505,30 @@ class ExportEngine:
             self.currentIncrement = dict()
 
     def finalize(self):
-        self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks)
-
-    def createEnsightGeometryFromModel(self):
-        partList = []
-        partNumber = 1
-
-        ALLSet = ElSet("ALL", self.allElements.values())
-        self.elSets["ALL"] = ALLSet
-
-        for elSet in self.elSets.values():
-            elSetPart = es.EnsightUnstructuredPart(
-                elSet.name,
-                partNumber,
-                elSet.getEnsightCompatibleElementNodeIndices(),
-                elSet.getEnsightCompatibleReducedNodeCoords(),
-                list(elSet.getEnsightCompatibleReducedNodes().keys()),
-            )
-            elSet.ensightPartID = partNumber
-            partList.append(elSetPart)
-            partNumber += 1
-
-        geometry = es.EnsightGeometry("geometry", "-", "-", partList, "given", "given")
-        return geometry
+        self.ensightExporter.finalize(closeFileHandles=True)
 
     def collectQpAverageJobs(self, entries):
+        """Commonly, the average of a result over all quadrature points per element should be computed.
+        This function gathers all jobs.
+
+        Parameters
+        ----------
+        entries
+            The list of job definitions."""
+
         jobs = []
         for entry in entries:
             jobs.append(entry)
         return jobs
 
-    def computeQpAverage(self, job):
+    def computeQpAverage(self, job: dict):
+        """Compute the average of an  elemental variable over all quadrature points.
+
+        Parameters
+        ----------
+        job
+            The job defintion."""
+
         result = job["result"]
         setName = job["set"]
 
@@ -347,231 +536,78 @@ class ExportEngine:
 
         for elTypeResults in setResults.values():
             for elResults in elTypeResults.values():
-                elResults["computed"]["average"] = np.mean([qpRes for qpRes in elResults["qps"].values()], axis=0)
+                elResults["computed"]["average"] = np.mean(
+                    [qpRes for qpRes in elResults["qps"].values()], axis=0
+                )
 
-    def collectUelSDVToQpJobs(self, entries):
+    def collectUelSDVToQpJobs(self, entries: list):
+        """Abaqus UEL SDVs commonly should be computed to something resonable!
+        This function gathers the respective jobs from the input file.
+
+        Parameters
+        ----------
+        entries
+            The list of job definitions."""
+
         jobs = []
 
         for entry in entries:
             offset = entry["qpInitialOffset"]
             nQps = entry["qpCount"]
             qpDistance = entry["qpDistance"]
-            entry["qpSlices"] = [slice(offset + i * qpDistance, offset + (i + 1) * qpDistance) for i in range(nQps)]
+            entry["qpSlices"] = [
+                slice(offset + i * qpDistance, offset + (i + 1) * qpDistance)
+                for i in range(nQps)
+            ]
 
             jobs.append(entry)
 
         return jobs
 
-    def computeUelSdvToQp(self, job):
+    def computeUelSdvToQp(self, job: dict):
+        """Abaqus UEL SDVs commonly should be computed to something resonable!
+
+        Parameters
+        ----------
+        job
+            The job definition containing the task info."""
+
         setName = job["set"]
         destination = job["destination"]
         qpSlices = job["qpSlices"]
 
         source = self.currentIncrement["elementResults"]["SDV"][setName]
 
-        destination = self.currentIncrement["elementResults"][job["destination"]][setName]
+        destination = self.currentIncrement["elementResults"][job["destination"]][
+            setName
+        ]
 
         for ensElType, elements in source.items():
             for elLabel, uelResults in elements.items():
                 uelSdv = uelResults["qps"][1]
                 qpsData = [uelSdv[qpSlice] for qpSlice in qpSlices]
 
-                destination[ensElType][elLabel]["qps"] = {(i + 1): qpData for i, qpData in enumerate(qpsData)}
+                destination[ensElType][elLabel]["qps"] = {
+                    (i + 1): qpData for i, qpData in enumerate(qpsData)
+                }
 
-    def collectExportJobs(self, jobDefinitions):
-        """Collect all defined per element jobs in a dictionary
-        a job can consist of multiple Ensight variable definitions
-        with the same name defined on different element sets"""
-        jobs = {}
-        for jobDef in jobDefinitions:
-            jobName = jobDef["name"]
-            dimensions = int(jobDef["dimensions"])
-            timeSet = jobDef.get("timeSet", 1)
+    def _outputDefinition(self, recordContent: np.ndarray):
+        """Initialize a new output we are working on.
 
-            jobs[jobName] = EnsightExportJob(jobName, dimensions, timeSet, writeEmptyTimeSteps=True)
-
-        return jobs
-
-    def collectPerElementJobEntries(self, entryDefinitions, perElementVariableJobs):
-        """Collect all defined per element jobs in a dictionary
-        a job can consist of multiple Ensight variable definitions
-        with the same name defined on different element sets"""
-        # jobs = {}
-        for entry in entryDefinitions:
-            job = perElementVariableJobs[entry["job"]]
-
-            result = entry["result"]
-            setName = entry["set"]
-            loc = entry["location"]
-
-            which = entry["which"]
-
-            if loc == "qps":
-                which = int(w)
-
-            perSetJob = EnsightPerSetJobEntry(
-                job,
-                setName,
-                result=result,
-                location=loc,
-                which=which,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
-                offset=None,
-            )
-
-            job.entries[setName] = perSetJob
-
-        return perElementVariableJobs
-
-    def collectPerNodeJobEntries(self, entryDefinitions, perNodeVariableJobs):
-        """Collect all defined per node jobs in a dictionary
-        a job can consist of multiple Ensight variable definitions
-        with the same name defined on different element sets"""
-        # jobs = {}
-        for entry in entryDefinitions:
-            job = perNodeVariableJobs[entry["job"]]
-            setName = entry["set"]
-
-            jobEntry = EnsightPerSetJobEntry(
-                job,
-                setName,
-                result=entry["result"],
-                location=None,
-                which=None,
-                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
-                offset=None,
-                fillMissingValuesTo=entry.get("fillMissingValuesTo", None),
-            )
-
-            job.entries[setName] = jobEntry
-
-        return perNodeVariableJobs
-
-    def createEnsightPerNodeVariableFromPerNodeJob(self, exportJob):
-        partsDict = {}
-        for setName, jobEntry in exportJob.entries.items():
-            elSet = self.elSets[setName]
-
-            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
-
-            # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
-            setNodeIndices = elSet.getEnsightCompatibleReducedNodes().keys()
-
-            results = [self.currentIncrement["nodeResults"][jobEntry.result].get(node, None) for node in setNodeIndices]
-
-            if jobEntry.extractionSlice is not None:
-                results = [r[jobEntry.extractionSlice] if r is not None else r for r in results]
-
-            if jobEntry.extractionFunction is not None:
-                results = [perSetJobEntry.extractionFunction(r) if r is not None else r for r in results]
-
-            if jobEntry.fillMissingValuesTo is not None:
-                defaultResult = np.full((exportJob.dimensions,), jobEntry.fillMissingValuesTo)
-                d = exportJob.dimensions
-
-                # first fill up all the results we have
-                results = [
-                    np.append(
-                        r,
-                        (jobEntry.fillMissingValuesTo,) * (d - r.shape[0]),
-                    )
-                    if r is not None and r.shape[0] != d
-                    else r
-                    for r in results
-                ]
-
-                # then set all those we don't have for certain nodes
-                results = [defaultResult if r is None else r for r in results]
-
-            results = np.asarray(results, dtype=float)
-
-            setVariableDimensions = results.shape[1]
-
-            if setVariableDimensions != exportJob.dimensions:
-                raise Exception(
-                    "Variable dimension {:} in set {:} does not match the defined job dimension of {:} in job '{:}'. Consider using the 'fillMissingValuesTo' option for the export entry.".format(
-                        setVariableDimensions, setName, exportJob.dimensions, exportJob.exportName
-                    )
-                )
-
-            partsDict[elSet.ensightPartID] = ("coordinates", results)
-
-        if partsDict or exportJob.writeEmptyTimeSteps:
-            return es.EnsightPerNodeVariable(exportJob.exportName, exportJob.dimensions, partsDict)
-        else:
-            return None
-
-    def createEnsightPerElementVariableFromPerElementJob(self, exportJob):
-        partsDict = {}
-        for setName, perSetJobEntry in exportJob.entries.items():
-            elSet = self.elSets[setName]
-            result = perSetJobEntry.result
-            location = perSetJobEntry.location
-            which = perSetJobEntry.which
-
-            incrementVariableResults = self.currentIncrement["elementResults"][result][setName]
-            incrementVariableResultsArrays = {}
-
-            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
-
-            for ensElType, elDict in incrementVariableResults.items():
-                try:
-                    results = np.asarray(
-                        [elDict[el.label][location][which] for el in elSet.elements[ensElType]], dtype=float
-                    )
-                except:
-                    raise Exception(
-                        "Failed to retrieve result '{:}' in '{:}' for set {:}. Does it exist?".format(
-                            which, location, setName
-                        )
-                    )
-
-                if perSetJobEntry.offset:
-                    results = results[:, perSetJobEntry.offset :]
-
-                if perSetJobEntry.extractionFunction:
-                    results = np.apply_along_axis(perSetJobEntry.extractionFunction, axis=1, arr=results)
-                    results = np.reshape(results, (results.shape[0], -1))  # ensure that dimensions are kept
-
-                if perSetJobEntry.extractionSlice:
-                    results = results[:, perSetJobEntry.extractionSlice]
-
-                incrementVariableResultsArrays[ensElType] = results
-                setVariableDimensions = results.shape[1]
-
-            if setVariableDimensions != exportJob.dimensions:
-                raise Exception(
-                    "Variable dimension {:} in set {:} does not match the defined job dimension of {:} in job '{:}'. Consider using the 'fillMissingValuesTo' option for the export entry.".format(
-                        setVariableDimensions, setName, exportJob.dimensions, exportJob.exportName
-                    )
-                )
-
-            partsDict[elSet.ensightPartID] = incrementVariableResultsArrays
-
-        if partsDict or exportJob.writeEmptyTimeSteps:
-            # variableDimension = exportJob.dimensions or variableLength
-            return es.EnsightPerElementVariable(
-                exportJob.exportName,
-                exportJob.dimensions,
-                partsDict,
-            )
-        else:
-            return None
-
-    def outputDefinition(self, recordContent):
-        """
-        Attributes:
-        1  –  Flag for element-based output (0), nodal output (1), modal output (2), or element set energy output (3).
-        2  –  Set name (node or element set) used in the request (A8 format). This attribute is blank if no set was specified.
-        3  –  Element type (only for element output, A8 format)."""
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the element label, and the current quadrature point.
+            Attributes:
+            1  –  Flag for element-based output (0), nodal output (1), modal output (2), or element set energy output (3).
+            2  –  Set name (node or element set) used in the request (A8 format). This attribute is blank if no set was specified.
+            3  –  Element type (only for element output, A8 format)."""
 
         flag = filFlag(recordContent[0])
         if flag == 0:
             setName = filStrippedString(recordContent[1])
             elType = filStrippedString(recordContent[2])
-            self.currentEnsightElementType = self.ensightElementTypeMappings[elType]
+            self.currentElementType = elType
 
         elif flag == 1:
             setName = filStrippedString(recordContent[1])
@@ -584,20 +620,40 @@ class ExportEngine:
 
         self.currentSetName = setName
 
-    def elementHeaderRecord(self, rec):
-        elNum = filFlag(rec[0])
-        self.currentElementNum = elNum
-        self.currentIpt = filFlag(rec[1])
+    def _elementHeaderRecord(self, recordContent: np.ndarray):
+        """Initialize the element we are working on.
 
-    def handlePerElementOutput(self, rec, result):
-        res = filDouble(rec)
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the element label, and the current quadrature point.
+        """
+
+        elNum = filFlag(recordContent[0])
+        self.currentElementNum = elNum
+        self.currentIpt = filFlag(recordContent[1])
+
+    def _handlePerElementOutput(self, recordContent: np.ndarray, result: str):
+        """Data for an element.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the data.
+        result
+            The result type (e.g., S,E,SDV...).
+        """
+
+        res = filDouble(recordContent)
         currentIncrement = self.currentIncrement
         currentSetName = self.currentSetName
-        currentEnsightElementType = self.currentEnsightElementType
+        currentEnsightElementType = self.currentElementType
         qp = self.currentIpt
         currentElementNum = self.currentElementNum
 
-        targetLocation = currentIncrement["elementResults"][result][currentSetName][currentEnsightElementType]
+        targetLocation = currentIncrement["elementResults"][result][currentSetName][
+            currentEnsightElementType
+        ]
 
         if qp not in targetLocation[currentElementNum]["qps"]:
             targetLocation[currentElementNum]["qps"][qp] = res
@@ -607,15 +663,33 @@ class ExportEngine:
                 (targetLocation[currentElementNum]["qps"][qp], res)
             )
 
-    def handlePerNodeOutput(self, rec, location):
-        node = filInt(rec[0])[0]
-        vals = filDouble(rec[1:])
+    def _handlePerNodeOutput(self, recordContent: np.ndarray, result: str):
+        """Data for a node.
 
-        if location not in self.currentIncrement["nodeResults"]:
-            self.currentIncrement["nodeResults"][location] = {}
-        self.currentIncrement["nodeResults"][location][node] = vals
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the node label, and the data.
+        result
+            The result (e.g., U, NT, ...)
+        """
 
-    def addNode(self, recordContent):
+        node = filInt(recordContent[0])[0]
+        vals = filDouble(recordContent[1:])
+
+        if result not in self.currentIncrement["nodeResults"]:
+            self.currentIncrement["nodeResults"][result] = {}
+        self.currentIncrement["nodeResults"][result][node] = vals
+
+    def _addNode(self, recordContent: np.ndarray):
+        """Definition of a node.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the label, and the coordinates.
+        """
+
         label = filInt(recordContent[0])[0]
         coords = filDouble(recordContent[1:4])
 
@@ -623,21 +697,41 @@ class ExportEngine:
         if coords.shape[0] < 3:
             coords = np.pad(coords, (0, 3 - coords.shape[0]), mode="constant")
 
-        node = self.allNodes[label]
-        node.label = label
+        if label in self.nodes:
+            print("Node {:} already exists!".format(label))
+            exit(0)
 
-        node.coords = coords
+        self.nodes[label] = Node(label, coords)
 
-    def addElement(self, recordContent):
+    def _addElementDefinition(self, recordContent):
+        """Definition of an element.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the label, the type and the node labels.
+        """
+
         elNum = filInt(recordContent[0])[0]
         elType = filStrippedString(recordContent[1])
         elabqNodes = filInt(recordContent[2:])
 
-        self.allElements[elNum] = Element(
-            elNum, self.ensightElementTypeMappings[elType], [self.allNodes[n] for n in elabqNodes]
-        )
+        nodes = [n for n in elabqNodes]
 
-    def addElset(self, recordContent):
+        if elType in self.ignoreLastNodesForElType:
+            nodes = nodes[0 : -self.ignoreLastNodesForElType[elType]]
+
+        self.elementDefinitions[elNum] = ElementDefinition(elNum, elType, nodes)
+
+    def _addElsetDefinition(self, recordContent):
+        """Definition of an Abaqus element set.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the name and the element labels.
+        """
+
         setName = filStrippedString(recordContent[0])
         if not setName:
             setName = "ALL"
@@ -646,13 +740,33 @@ class ExportEngine:
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
 
-        self.elSets[setName] = ElSet(setName, [self.allElements[e] for e in abqElements])
+        self.elSetDefinitions[setName] = ElSetDefinition(
+            setName, [e for e in abqElements]
+        )
 
-    def contAddElset(self, recordContent):
+    def _contAddElset(self, recordContent):
+        """Add more element labels to a element set definition.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the element labels.
+        """
+
         abqElements = filInt(recordContent)
-        self.elSets[self.currentSetName].appendElements([self.allElements[e] for e in abqElements])
+        self.elSetDefinitions[self.currentSetName].appendElementLabels(
+            [e for e in abqElements]
+        )
 
-    def addNodeset(self, recordContent):
+    def _createNodeSetDefinition(self, recordContent):
+        """Definition of an Abaqus node set.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the name and the node labels.
+        """
+
         setName = filStrippedString(recordContent[0])
 
         if not setName:
@@ -663,13 +777,31 @@ class ExportEngine:
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
 
-        self.nSets[setName] = NSet(setName, [self.allNodes[n] for n in abqNodes])
+        self.nSetDefinitions[setName] = NSetDefinition(setName, [n for n in abqNodes])
 
-    def contAddNodeset(self, recordContent):
+    def _contNodeSetDefinition(self, recordContent):
+        """Add more nodes labels to a node set definition.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains The node labels.
+        """
+
         abqNodes = filInt(recordContent)
-        self.nSets[self.currentSetName].appendNodes([self.allNodes[n] for n in abqNodes])
+        self.nSetDefinitions[self.currentSetName].appendNodeLabels(
+            [n for n in abqNodes]
+        )
 
-    def addIncrement(self, recordContent):
+    def _addIncrement(self, recordContent):
+        """A .fil increment (or the model setup) starts. We prepare everything.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains time information.
+        """
+
         self.currentState = "increment parsing"
         r = recordContent
         tTotal, tStep = filDouble(r[0:2])
@@ -685,13 +817,33 @@ class ExportEngine:
         currentIncrement["elementResults"] = RecursiveDefaultDict()
         currentIncrement["nodeResults"] = RecursiveDefaultDict()
         print("*" * 80)
-        print("processing increment {:>5}  tTotal:{:>16.5f}".format(self.nIncrements, self.currentIncrement["tTotal"]))
+        print(
+            "processing increment {:>5}  tTotal:{:>16.5f}".format(
+                self.nIncrements, self.currentIncrement["tTotal"]
+            )
+        )
 
-    def addLabelCrossReference(self, recordContent):
+    def _addLabelCrossReference(self, recordContent):
+        """Reference to a label using an integer.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the label information.
+        """
+
         r = recordContent
         intKey = filFlag(r[0])
         label = filStrippedString(r[1:])
         self.labelCrossReferences[str(intKey)] = label
 
-    def surfaceDefHeader(self, recordContent):
+    def _surfaceDefHeader(self, recordContent):
+        """A definition of a side set follows.
+        Currently not used!
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Containts the surface information.
+        """
         self.currentState = "surface definition"

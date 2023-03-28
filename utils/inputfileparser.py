@@ -35,10 +35,23 @@ typeMappings = {
             ),
         },
     ),
+    "*ignoreLastNodesForElementType": (
+        "Ignore trailing nodes to be ignored (e.g, make a hexa27 to a hex20 with number=7)",
+        {
+            "element": (str, "Abaqus (User) Element"),
+            "number": (
+                int,
+                "The number of nodes to be ignored",
+            ),
+        },
+    ),
     "*ensightCaseOptions": (
         "modify Ensight export options",
         {
-            "discardTime": (str, "discard Time values and replace by enumeration of time steps"),
+            "discardTime": (
+                str,
+                "discard Time values and replace by enumeration of time steps",
+            ),
         },
     ),
     "*computeAverageOverQuadraturePoints": (
@@ -53,9 +66,18 @@ typeMappings = {
         {
             "set": (str, "Abaqus element set"),
             "destination": (str, "new name of the result"),
-            "qpCount": (int, "define a periodical pattern for a repeated extraction for results at quadrature points"),
-            "qpDistance": (int, "define a periodical pattern: data distance between qps"),
-            "qpInitialOffset": (int, "define a periodical pattern: initial constant offset before qp data begins"),
+            "qpCount": (
+                int,
+                "define a periodical pattern for a repeated extraction for results at quadrature points",
+            ),
+            "qpDistance": (
+                int,
+                "define a periodical pattern: data distance between qps",
+            ),
+            "qpInitialOffset": (
+                int,
+                "define a periodical pattern: initial constant offset before qp data begins",
+            ),
         },
     ),
     "*ensightPerNodeVariableJob": (
@@ -79,7 +101,10 @@ typeMappings = {
                 str,
                 "(optional), define a index/slice to extract a subarray from the total result array (per Element)",
             ),
-            "f(x)": (str, "(optional), apply a mathematical/array expression on the result array (per Element, slow!)"),
+            "f(x)": (
+                str,
+                "(optional), apply a mathematical/array expression on the result array (per Element, slow!)",
+            ),
             "fillMissingValues": (
                 float,
                 "(optional), fill missing nodal values with a constant values, requires specified dimensions (slow!)",
@@ -104,12 +129,18 @@ typeMappings = {
             "set": (str, "Abaqus element set"),
             "result": (str, "Abaqus variable identifier"),
             "location": (str, "where is the result ? qps | computed "),
-            "which": (str, 'which one? e.g. quadrature point numbers or "average" for average computed results'),
+            "which": (
+                str,
+                'which one? e.g. quadrature point numbers or "average" for average computed results',
+            ),
             "values": (
                 str,
                 "(optional), define a index/slice to extract a subarray from the total result array (per Element)",
             ),
-            "f(x)": (str, "(optional), apply a mathematical/array expression on the result array (per Element, slow!)"),
+            "f(x)": (
+                str,
+                "(optional), apply a mathematical/array expression on the result array (per Element, slow!)",
+            ),
         },
     ),
     "*include": (
@@ -147,12 +178,16 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                 keyword = lineElements[0]
 
                 if keyword not in fileDict:
-                    raise InputSyntaxException("Invalid keyword {:} provided".format(keyword))
+                    raise InputSyntaxException(
+                        "Invalid keyword {:} provided".format(keyword)
+                    )
 
                 optionAssignments = lineElements[1:]
 
                 objectentry = {}
-                objectentry["inputFile"] = fileName  # save also the filename of the original inputfile!
+                objectentry[
+                    "inputFile"
+                ] = fileName  # save also the filename of the original inputfile!
 
                 for ass in optionAssignments:
                     opts = ass.split("=")
@@ -162,21 +197,27 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                         mType = getMapType(keyword, optKey)
                     except KeyError:
                         raise InputSyntaxException(
-                            "'{:}' is not a valid option for keyword {:}".format(optKey, keyword)
+                            "'{:}' is not a valid option for keyword {:}".format(
+                                optKey, keyword
+                            )
                         )
 
                     try:
                         objectentry[optKey] = mType(val)
                     except:
                         raise InputSyntaxException(
-                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(val, mType, optKey, keyword)
+                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(
+                                val, mType, optKey, keyword
+                            )
                         )
 
                 # special treatment for *include:
                 if keyword == "*include":
                     includeFile = objectentry["input"]
                     parseInputFile(
-                        join(dirname(fileName), includeFile), currentKeyword=lastkeyword, existingFileDict=fileDict
+                        join(dirname(fileName), includeFile),
+                        currentKeyword=lastkeyword,
+                        existingFileDict=fileDict,
                     )
                     keyword = lastkeyword
                 else:

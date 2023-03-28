@@ -119,6 +119,12 @@ available keywords:
                                                     total result array (per Element)
 
 
+    *ignoreLastNodesForElementType    Ignore trailing nodes to be ignored (e.g, make a hexa27 to a hex20 with number=7)
+
+        element                       string        Abaqus (User) Element
+        number                        integer       The number of nodes to be ignored
+
+
     *include    (optional) load extra .inp file (fragment), use relative path to current .inp
 
         input                         string        filename
