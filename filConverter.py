@@ -6,6 +6,7 @@ License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
+import argparse
 import sys
 import os
 import numpy as np
@@ -59,16 +60,31 @@ def getWords(fn, fileIdx, idxEnd):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3 or sys.argv[1] == "--help":
-        print("Usage: filConverter.py  FILFILE.fil  EXPORTDEFINITION.inp")
-        print("")
-        print("Available Keywords:")
-        print("")
-        printKeywords()
-        exit()
+    parser = argparse.ArgumentParser(description="A translator for Abaqus .fil files.")
 
-    fn = sys.argv[1]
-    jobFile = sys.argv[2]
+    parser.add_argument(
+        "fil",
+        metavar="FILFILE.fil",
+        help="The Abaqus .fil file",
+        type=str,
+    )
+    parser.add_argument(
+        "expDef",
+        metavar="EXPORTDEFINITION.inp",
+        help="The .inp export definition file",
+        type=str,
+    )
+    parser.add_argument(
+        "--keywords", dest="kw", action="store_true", help="print keywords"
+    )
+    args = parser.parse_args()
+
+    if args.kw:
+        printKeywords()
+        exit(0)
+
+    fn = args.fil
+    jobFile = args.expDef
 
     exportJobs = parseInputFile(jobFile)
 
