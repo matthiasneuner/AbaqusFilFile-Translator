@@ -505,7 +505,7 @@ class ExportEngine:
             self.currentIncrement = dict()
 
     def finalize(self):
-        self.ensightExporter.finalize()
+        self.ensightExporter.finalize(closeFileHandles=True)
 
     def collectQpAverageJobs(self, entries):
         """Commonly, the average of a result over all quadrature points per element should be computed.

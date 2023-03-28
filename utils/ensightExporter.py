@@ -124,8 +124,8 @@ class EnsightExporter:
                 )
                 del enSightVar
 
-    def finalize(self):
-        self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks)
+    def finalize(self, closeFileHandles):
+        self.ensightCase.finalize(self.ensightCaseDiscardTimeMarks, closeFileHandles)
 
     def _collectExportJobs(self, jobDefinitions):
         """Collect all defined per element jobs in a dictionary
