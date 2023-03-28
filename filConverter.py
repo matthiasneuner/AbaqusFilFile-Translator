@@ -185,8 +185,8 @@ if __name__ == "__main__":
 
     print("*" * 80)
     print("Summary of .fil file:")
-    print("{:<60}{:>20}".format("nodes:", len(exportEngine.allNodes)))
-    print("{:<60}{:>20}".format("elements:", len(exportEngine.allElements)))
+    print("{:<60}{:>20}".format("nodes:", len(exportEngine.nodes)))
+    print("{:<60}{:>20}".format("elements:", len(exportEngine.elements)))
     print("{:<60}{:>20}".format("element sets:", len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
         for elType, elements in elSet.elementsByShape.items():
