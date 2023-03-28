@@ -10,7 +10,7 @@ import sys
 import os
 import numpy as np
 import math
-import utils.exportEngine as eE
+from utils.exportEngine import ExportEngine, filInt
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     print("{:<20}{:>60}".format("opening file", fn))
     print("*" * 80)
 
-    exportEngine = eE.ExportEngine(exportJobs, exportName)
+    exportEngine = ExportEngine(exportJobs, exportName)
 
     fileSize = getCurrentFileSize(fn)
     numberOfBatchSteps = math.ceil(fileSize / FIL_BATCHSIZE)
@@ -100,7 +100,7 @@ if __name__ == "__main__":
                 words = getWords(fn, fileIdx, idxEnd)
 
                 while wordIdx < len(words):
-                    recordLength = eE.filInt(words[wordIdx])[0]
+                    recordLength = filInt(words[wordIdx])[0]
                     if recordLength <= 2:
                         print(
                             "found a record with 0 length content, possible an aborted Abaqus analysis"
@@ -155,7 +155,7 @@ if __name__ == "__main__":
                         )  # of course, restart at the present index
                         break
 
-                    recordType = eE.filInt(words[wordIdx + 1])[0]
+                    recordType = filInt(words[wordIdx + 1])[0]
                     recordContent = words[wordIdx + 2 : wordIdx + recordLength]
                     success = exportEngine.computeRecord(
                         recordLength, recordType, recordContent

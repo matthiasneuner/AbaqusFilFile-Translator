@@ -283,7 +283,18 @@ class NSet:
 
 
 class ExportEngine:
-    def __init__(self, inputFile, caseName):
+    def __init__(self, inputFile: dict, exportName: str):
+        """This is the export engine. It parses a .fil file record wise,
+        and exports results based on user defined jobs.
+
+        Parameters
+        ----------
+        inputFile
+            The dictionary containing the input file.
+        exportName
+            The export name.
+        """
+
         self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(
             inputFile["*UELSDVToQuadraturePoints"]
         )
@@ -296,7 +307,7 @@ class ExportEngine:
             for x in inputFile["*ignoreLastNodesForElementType"]
         }
 
-        self.ensightExporter = EnsightExporter(caseName, inputFile)
+        self.ensightExporter = EnsightExporter(exportName, inputFile)
 
         self.nodes = {}
         # add a default node, to which abaqus falls back if it creates node in place (e.g, for hex27 elements in contact)
@@ -320,34 +331,53 @@ class ExportEngine:
         self.labelCrossReferences = {}
 
         self.knownRecords = {
-            1: ("Element header record", self.elementHeaderRecord),
-            5: ("SDV output", lambda x: self.handlePerElementOutput(x, "SDV")),
-            11: ("S output", lambda x: self.handlePerElementOutput(x, "S")),
-            21: ("E output", lambda x: self.handlePerElementOutput(x, "E")),
-            22: ("PE output", lambda x: self.handlePerElementOutput(x, "PE")),
-            101: ("U output", lambda x: self.handlePerNodeOutput(x, "U")),
-            102: ("V output", lambda x: self.handlePerNodeOutput(x, "V")),
-            103: ("A output", lambda x: self.handlePerNodeOutput(x, "A")),
-            104: ("RF output", lambda x: self.handlePerNodeOutput(x, "RF")),
-            201: ("NT output", lambda x: self.handlePerNodeOutput(x, "NT")),
-            1501: ("Surface definition header", self.surfaceDefHeader),
+            1: ("Element header record", self._elementHeaderRecord),
+            5: ("SDV output", lambda x: self._handlePerElementOutput(x, "SDV")),
+            11: ("S output", lambda x: self._handlePerElementOutput(x, "S")),
+            21: ("E output", lambda x: self._handlePerElementOutput(x, "E")),
+            22: ("PE output", lambda x: self._handlePerElementOutput(x, "PE")),
+            101: ("U output", lambda x: self._handlePerNodeOutput(x, "U")),
+            102: ("V output", lambda x: self._handlePerNodeOutput(x, "V")),
+            103: ("A output", lambda x: self._handlePerNodeOutput(x, "A")),
+            104: ("RF output", lambda x: self._handlePerNodeOutput(x, "RF")),
+            201: ("NT output", lambda x: self._handlePerNodeOutput(x, "NT")),
+            1501: ("Surface definition header", self._surfaceDefHeader),
             1502: ("Surface facet", lambda x: None),
-            1900: ("element definition", self.addElementDefinition),
-            1901: ("node definition", self.addNode),
+            1900: ("element definition", self._addElementDefinition),
+            1901: ("node definition", self._addNode),
             1902: ("active dof", lambda x: None),
-            1911: ("output request definition", self.outputDefinition),
+            1911: ("output request definition", self._outputDefinition),
             1921: ("heading", lambda x: None),
             1922: ("heading", lambda x: None),
-            1931: ("node set definition", self.createNodeSetDefinition),
-            1932: ("node set definition cont.", self.contNodeSetDefinition),
-            1933: ("element set definition", self.addElsetDefinition),
-            1934: ("element set definition cont.", self.contAddElset),
-            1940: ("label cross reference", self.addLabelCrossReference),
-            2000: ("start increment", self.addIncrement),
-            2001: ("end increment", self.finishAndParseIncrement),
+            1931: ("node set definition", self._createNodeSetDefinition),
+            1932: ("node set definition cont.", self._contNodeSetDefinition),
+            1933: ("element set definition", self._addElsetDefinition),
+            1934: ("element set definition cont.", self._contAddElset),
+            1940: ("label cross reference", self._addLabelCrossReference),
+            2000: ("start increment", self._addIncrement),
+            2001: ("end increment", self._finishAndParseIncrement),
         }
 
-    def computeRecord(self, recordLength, recordType, recordContent):
+    def computeRecord(
+        self, recordLength: int, recordType: int, recordContent: np.ndarray
+    ):
+        """The main function of the export engine. It computes a .fil file record.
+
+        Parameters
+        ----------
+        recordLength
+            The length of the .fil record content.
+        recordType
+            The unique integer defining the type of record according to the Abaqus documentation.
+        recordContent
+            The data of the .fil record.
+
+        Returns
+        -------
+        bool
+            Success of the record computation.
+        """
+
         if recordType in self.knownRecords:
             doc, action = self.knownRecords[recordType]
             action(recordContent)
@@ -360,7 +390,7 @@ class ExportEngine:
             )
             return False
 
-    def finishAndParseIncrement(self, recordContent: np.ndarray):
+    def _finishAndParseIncrement(self, recordContent: np.ndarray):
         """A .fil increment (or the model setup) is finished. Time to write results and geometry!
 
         Parameters
@@ -478,12 +508,27 @@ class ExportEngine:
         self.ensightExporter.finalize()
 
     def collectQpAverageJobs(self, entries):
+        """Commonly, the average of a result over all quadrature points per element should be computed.
+        This function gathers all jobs.
+
+        Parameters
+        ----------
+        entries
+            The list of job definitions."""
+
         jobs = []
         for entry in entries:
             jobs.append(entry)
         return jobs
 
-    def computeQpAverage(self, job):
+    def computeQpAverage(self, job: dict):
+        """Compute the average of an  elemental variable over all quadrature points.
+
+        Parameters
+        ----------
+        job
+            The job defintion."""
+
         result = job["result"]
         setName = job["set"]
 
@@ -495,7 +540,15 @@ class ExportEngine:
                     [qpRes for qpRes in elResults["qps"].values()], axis=0
                 )
 
-    def collectUelSDVToQpJobs(self, entries):
+    def collectUelSDVToQpJobs(self, entries: list):
+        """Abaqus UEL SDVs commonly should be computed to something resonable!
+        This function gathers the respective jobs from the input file.
+
+        Parameters
+        ----------
+        entries
+            The list of job definitions."""
+
         jobs = []
 
         for entry in entries:
@@ -511,7 +564,14 @@ class ExportEngine:
 
         return jobs
 
-    def computeUelSdvToQp(self, job):
+    def computeUelSdvToQp(self, job: dict):
+        """Abaqus UEL SDVs commonly should be computed to something resonable!
+
+        Parameters
+        ----------
+        job
+            The job definition containing the task info."""
+
         setName = job["set"]
         destination = job["destination"]
         qpSlices = job["qpSlices"]
@@ -531,7 +591,7 @@ class ExportEngine:
                     (i + 1): qpData for i, qpData in enumerate(qpsData)
                 }
 
-    def outputDefinition(self, recordContent: np.ndarray):
+    def _outputDefinition(self, recordContent: np.ndarray):
         """Initialize a new output we are working on.
 
         Parameters
@@ -560,7 +620,7 @@ class ExportEngine:
 
         self.currentSetName = setName
 
-    def elementHeaderRecord(self, recordContent: np.ndarray):
+    def _elementHeaderRecord(self, recordContent: np.ndarray):
         """Initialize the element we are working on.
 
         Parameters
@@ -573,7 +633,7 @@ class ExportEngine:
         self.currentElementNum = elNum
         self.currentIpt = filFlag(recordContent[1])
 
-    def handlePerElementOutput(self, rec, result: str):
+    def _handlePerElementOutput(self, recordContent: np.ndarray, result: str):
         """Data for an element.
 
         Parameters
@@ -584,7 +644,7 @@ class ExportEngine:
             The result type (e.g., S,E,SDV...).
         """
 
-        res = filDouble(rec)
+        res = filDouble(recordContent)
         currentIncrement = self.currentIncrement
         currentSetName = self.currentSetName
         currentEnsightElementType = self.currentElementType
@@ -603,7 +663,7 @@ class ExportEngine:
                 (targetLocation[currentElementNum]["qps"][qp], res)
             )
 
-    def handlePerNodeOutput(self, recordContent: np.ndarray, result: str):
+    def _handlePerNodeOutput(self, recordContent: np.ndarray, result: str):
         """Data for a node.
 
         Parameters
@@ -621,7 +681,7 @@ class ExportEngine:
             self.currentIncrement["nodeResults"][result] = {}
         self.currentIncrement["nodeResults"][result][node] = vals
 
-    def addNode(self, recordContent: np.ndarray):
+    def _addNode(self, recordContent: np.ndarray):
         """Definition of a node.
 
         Parameters
@@ -643,7 +703,7 @@ class ExportEngine:
 
         self.nodes[label] = Node(label, coords)
 
-    def addElementDefinition(self, recordContent):
+    def _addElementDefinition(self, recordContent):
         """Definition of an element.
 
         Parameters
@@ -663,7 +723,7 @@ class ExportEngine:
 
         self.elementDefinitions[elNum] = ElementDefinition(elNum, elType, nodes)
 
-    def addElsetDefinition(self, recordContent):
+    def _addElsetDefinition(self, recordContent):
         """Definition of an Abaqus element set.
 
         Parameters
@@ -684,7 +744,7 @@ class ExportEngine:
             setName, [e for e in abqElements]
         )
 
-    def contAddElset(self, recordContent):
+    def _contAddElset(self, recordContent):
         """Add more element labels to a element set definition.
 
         Parameters
@@ -698,7 +758,7 @@ class ExportEngine:
             [e for e in abqElements]
         )
 
-    def createNodeSetDefinition(self, recordContent):
+    def _createNodeSetDefinition(self, recordContent):
         """Definition of an Abaqus node set.
 
         Parameters
@@ -719,7 +779,7 @@ class ExportEngine:
 
         self.nSetDefinitions[setName] = NSetDefinition(setName, [n for n in abqNodes])
 
-    def contNodeSetDefinition(self, recordContent):
+    def _contNodeSetDefinition(self, recordContent):
         """Add more nodes labels to a node set definition.
 
         Parameters
@@ -733,7 +793,7 @@ class ExportEngine:
             [n for n in abqNodes]
         )
 
-    def addIncrement(self, recordContent):
+    def _addIncrement(self, recordContent):
         """A .fil increment (or the model setup) starts. We prepare everything.
 
         Parameters
@@ -763,7 +823,7 @@ class ExportEngine:
             )
         )
 
-    def addLabelCrossReference(self, recordContent):
+    def _addLabelCrossReference(self, recordContent):
         """Reference to a label using an integer.
 
         Parameters
@@ -777,5 +837,13 @@ class ExportEngine:
         label = filStrippedString(r[1:])
         self.labelCrossReferences[str(intKey)] = label
 
-    def surfaceDefHeader(self, recordContent):
+    def _surfaceDefHeader(self, recordContent):
+        """A definition of a side set follows.
+        Currently not used!
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Containts the surface information.
+        """
         self.currentState = "surface definition"
