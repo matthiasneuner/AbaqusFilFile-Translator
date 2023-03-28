@@ -44,13 +44,22 @@ class EnsightUnstructuredPart:
     Each dictionary entry consists of a list of tuples of elementlabel and nodelist:
     {strElementType : [ ( intLabel = None, [nodeList] ) ]}"""
 
-    def __init__(self, description, partNumber, elements, nodes, nodeLabels):
+    def __init__(
+        self,
+        description,
+        partNumber,
+        elements,
+        nodes,
+        nodeLabels,
+        ensightElementTypeMappings,
+    ):
         self.structureType = "coordinates"
         self.nodes = nodes
         self.nodeLabels = nodeLabels
         self.elements = elements
         self.description = description
         self.partNumber = partNumber
+        self.ensightElementTypeMappings = ensightElementTypeMappings
 
     def writeToFile(
         self, binaryFileHandle, printNodeLabels=True, printElementLabels=True
@@ -70,8 +79,8 @@ class EnsightUnstructuredPart:
         writeCFloat(f, self.nodes.T)
 
         # elements
-        for elemType, elemList in self.elements.items():
-            writeC80(f, elemType)
+        for elType, elemList in self.elements.items():
+            writeC80(f, self.ensightElementTypeMappings[elType])
             writeCInt(f, len(elemList))
             if printElementLabels:
                 for elemID, nodes in elemList:
@@ -201,17 +210,13 @@ class EnsightPerElementVariable:
     """
 
     def __init__(
-        self,
-        name,
-        variableDimension,
-        ensightPartsDict=None,
+        self, name, variableDimension, ensightPartsDict, ensightElementTypeMappings
     ):
         self.name = name
         self.description = name
-        self.partsDict = (
-            ensightPartsDict or {}
-        )  # { EnsightPart: np.array(variableValues) }
+        self.partsDict = ensightPartsDict
         self.varType = ensightPerElementVariableTypes[variableDimension]
+        self.ensightElementTypeMappings = ensightElementTypeMappings
         self.variableDimension = variableDimension
 
     def writeToFile(self, fileHandle):
@@ -221,7 +226,7 @@ class EnsightPerElementVariable:
             writeC80(f, "part")
             writeCInt(f, ensightPartID)
             for elType, values in elTypeDict.items():
-                writeC80(f, elType)
+                writeC80(f, self.ensightElementTypeMappings[elType])
                 writeCFloat(f, values.T)
                 if values.shape[1] < self.variableDimension:
                     writeCFloat(

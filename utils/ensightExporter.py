@@ -74,11 +74,58 @@ class EnsightExporter:
             self.perNodeJobs,
         )
 
+        self.ensightElementTypeMappings = {
+            x["element"]: x["shape"] for x in inputFile["*defineElementType"]
+        }
+
         # TODO determine if we can do that at instantiation
         self.nodes = None
         self.elements = None
         self.nSets = None
         self.elSets = None
+
+    def setupModel(self, nodes, nSets, elements, elSets):
+        self.nodes = nodes
+        self.elements = elements
+        self.nSets = nSets
+        self.elSets = elSets
+
+    def setCurrentTime(self, currentTime: float):
+        self.ensightCase.setCurrentTime(currentTime)
+
+    def exportGeometry(
+        self,
+    ):
+        geometryTimesetNumber = None
+        geometry = self._createEnsightGeometryFromModel(
+            self.nodes, self.nSets, self.elements, self.elSets
+        )
+        self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
+
+    def exportPerNodeVariables(self, nodeResults):
+        for exportJob in self.perNodeJobs.values():
+            enSightVar = self._createEnsightPerNodeVariableFromPerNodeJob(
+                exportJob, nodeResults
+            )
+            if enSightVar:
+                self.ensightCase.writeVariableTrendChunk(
+                    enSightVar, exportJob.timeSetID
+                )
+                del enSightVar
+
+    def exportPerElementVariables(self, elementResults):
+        for exportJob in self.perElementJobs.values():
+            enSightVar = self._createEnsightPerElementVariableFromPerElementJob(
+                exportJob, elementResults
+            )
+            if enSightVar:
+                self.ensightCase.writeVariableTrendChunk(
+                    enSightVar, exportJob.timeSetID
+                )
+                del enSightVar
+
+    def finalize(self):
+        self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks)
 
     def _collectExportJobs(self, jobDefinitions):
         """Collect all defined per element jobs in a dictionary
@@ -160,66 +207,7 @@ class EnsightExporter:
 
         return perNodeVariableJobs
 
-    def setupModel(self, nodes, nSets, elements, elSets):
-        self.nodes = nodes
-        self.elements = elements
-        self.nSets = nSets
-        self.elSets = elSets
-
-    def setCurrentTime(self, currentTime: float):
-        self.ensightCase.setCurrentTime(currentTime)
-
-    def exportGeometry(
-        self,
-    ):
-        geometryTimesetNumber = None
-        geometry = self.createEnsightGeometryFromModel(
-            self.nodes, self.nSets, self.elements, self.elSets
-        )
-        self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
-
-    def exportPerNodeVariables(self, nodeResults):
-        for exportJob in self.perNodeJobs.values():
-            enSightVar = self.createEnsightPerNodeVariableFromPerNodeJob(
-                exportJob, nodeResults
-            )
-            if enSightVar:
-                self.ensightCase.writeVariableTrendChunk(
-                    enSightVar, exportJob.timeSetID
-                )
-                del enSightVar
-
-    def exportPerElementVariables(self, elementResults):
-        for exportJob in self.perElementJobs.values():
-            enSightVar = self.createEnsightPerElementVariableFromPerElementJob(
-                exportJob, elementResults
-            )
-            if enSightVar:
-                self.ensightCase.writeVariableTrendChunk(
-                    enSightVar, exportJob.timeSetID
-                )
-                del enSightVar
-
-    # def collectExportJobs(self, jobDefinitions):
-    #     """Collect all defined per element jobs in a dictionary
-    #     a job can consist of multiple Ensight variable definitions
-    #     with the same name defined on different element sets"""
-    #     jobs = {}
-    #     for jobDef in jobDefinitions:
-    #         jobName = jobDef["name"]
-    #         dimensions = int(jobDef["dimensions"])
-    #         timeSet = jobDef.get("timeSet", 1)
-
-    #         jobs[jobName] = EnsightExportJob(
-    #             jobName, dimensions, timeSet, writeEmptyTimeSteps=True
-    #         )
-
-    #     return jobs
-
-    def finalize(self):
-        self.ensightCase.finalize(discardTimeMarks=self.ensightCaseDiscardTimeMarks)
-
-    def createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
+    def _createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
         partsDict = {}
         for setName, jobEntry in exportJob.entries.items():
             elSet = self.elSets[setName]
@@ -294,7 +282,7 @@ class EnsightExporter:
         else:
             return None
 
-    def createEnsightPerElementVariableFromPerElementJob(
+    def _createEnsightPerElementVariableFromPerElementJob(
         self, exportJob, elementResults
     ):
         partsDict = {}
@@ -309,12 +297,12 @@ class EnsightExporter:
 
             print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
 
-            for ensElType, elDict in incrementVariableResults.items():
+            for elType, elDict in incrementVariableResults.items():
                 try:
                     results = np.asarray(
                         [
                             elDict[el.label][location][which]
-                            for el in elSet.elementsByShape[ensElType]
+                            for el in elSet.elementsByShape[elType]
                         ],
                         dtype=float,
                     )
@@ -339,7 +327,7 @@ class EnsightExporter:
                 if perSetJobEntry.extractionSlice:
                     results = results[:, perSetJobEntry.extractionSlice]
 
-                incrementVariableResultsArrays[ensElType] = results
+                incrementVariableResultsArrays[elType] = results
                 setVariableDimensions = results.shape[1]
 
             if setVariableDimensions != exportJob.dimensions:
@@ -355,16 +343,16 @@ class EnsightExporter:
             partsDict[elSet.ensightPartID] = incrementVariableResultsArrays
 
         if partsDict or exportJob.writeEmptyTimeSteps:
-            # variableDimension = exportJob.dimensions or variableLength
             return es.EnsightPerElementVariable(
                 exportJob.exportName,
                 exportJob.dimensions,
                 partsDict,
+                self.ensightElementTypeMappings,
             )
         else:
             return None
 
-    def createEnsightGeometryFromModel(self, nodes, nodeSets, elements, elSets):
+    def _createEnsightGeometryFromModel(self, nodes, nodeSets, elements, elSets):
         partList = []
         partNumber = 1
 
@@ -375,6 +363,7 @@ class EnsightExporter:
                 elSet._getEnsightCompatibleElements(),
                 elSet._getEnsightCompatibleReducedNodeCoords(),
                 list(elSet._getEnsightCompatibleReducedNodes().keys()),
+                self.ensightElementTypeMappings,
             )
             elSet.ensightPartID = partNumber
             partList.append(elSetPart)

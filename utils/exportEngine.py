@@ -296,10 +296,6 @@ class ExportEngine:
             for x in inputFile["*ignoreLastNodesForElementType"]
         }
 
-        self.ensightElementTypeMappings = {
-            x["element"]: x["shape"] for x in inputFile["*defineElementType"]
-        }
-
         self.ensightExporter = EnsightExporter(caseName, inputFile)
 
         self.nodes = {}
@@ -374,6 +370,7 @@ class ExportEngine:
         """
 
         if self.currentState == "model setup":
+            # we always create the 'ALL' set
             ALLSet = ElSetDefinition("ALL", list(self.elementDefinitions.keys()))
             self.elSetDefinitions["ALL"] = ALLSet
 
@@ -384,7 +381,6 @@ class ExportEngine:
                     elDef.shape,
                     [self.nodes[label] for label in elDef.nodeLabels],
                 )
-                # el.nodes = [self.allNodes[label] for label in el.nodes]
 
             for elSetDef in self.elSetDefinitions.values():
                 self.elSets[elSetDef.name] = ElSet(
@@ -551,7 +547,7 @@ class ExportEngine:
         if flag == 0:
             setName = filStrippedString(recordContent[1])
             elType = filStrippedString(recordContent[2])
-            self.currentEnsightElementType = self.ensightElementTypeMappings[elType]
+            self.currentElementType = elType
 
         elif flag == 1:
             setName = filStrippedString(recordContent[1])
@@ -591,7 +587,7 @@ class ExportEngine:
         res = filDouble(rec)
         currentIncrement = self.currentIncrement
         currentSetName = self.currentSetName
-        currentEnsightElementType = self.currentEnsightElementType
+        currentEnsightElementType = self.currentElementType
         qp = self.currentIpt
         currentElementNum = self.currentElementNum
 
@@ -665,9 +661,7 @@ class ExportEngine:
         if elType in self.ignoreLastNodesForElType:
             nodes = nodes[0 : -self.ignoreLastNodesForElType[elType]]
 
-        self.elementDefinitions[elNum] = ElementDefinition(
-            elNum, self.ensightElementTypeMappings[elType], nodes
-        )
+        self.elementDefinitions[elNum] = ElementDefinition(elNum, elType, nodes)
 
     def addElsetDefinition(self, recordContent):
         """Definition of an Abaqus element set.
