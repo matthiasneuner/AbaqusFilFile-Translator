@@ -27,15 +27,15 @@ def writeC80(f, string):
 ensightPerNodeVariableTypes = {
     1: "scalar per node",
     3: "vector per node",
-    6: "tensor6 per node",
-    9: "tensor9 per node",
+    6: "tensor per node",
+    9: "tensor asym per node",
 }
 
 ensightPerElementVariableTypes = {
     1: "scalar per element",
     3: "vector per element",
-    6: "tensor6 per element",
-    9: "tensor9 per element",
+    6: "tensor per element",
+    9: "tensor asym per element",
 }
 
 
