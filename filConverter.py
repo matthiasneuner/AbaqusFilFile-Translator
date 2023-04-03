@@ -15,12 +15,31 @@ from utils.exportEngine import ExportEngine, filInt
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
 
+# a word in a .fil file has a size of 8 bytes
 FIL_WORDSIZE = 8
+# a chunk in a .fil file consists of 513 words
 FIL_CHUNKSIZE = 513 * FIL_WORDSIZE
+# .fil files may become huge. We do not load them at once, but
+# but rather we split them into multiple batch sizes
 FIL_BATCHSIZE = FIL_CHUNKSIZE * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
 
 
-def fileSizeHumanReadable(num, suffix="B"):
+def fileSizeHumanReadable(num: int, suffix: str = "B"):
+    """Pretty format bytes to a human readable form.
+
+    Parameters
+    ----------
+    int
+        The number.
+    suffix
+        The suffix.
+
+    Returns
+    -------
+    type
+        The pretty formatted string.
+    """
+
     for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
         if abs(num) < 1000:
             return f"{num:3.1f} {unit}{suffix}"
@@ -29,14 +48,43 @@ def fileSizeHumanReadable(num, suffix="B"):
 
 
 def getCurrentFileSize(
-    fn,
+    fn: str,
 ):
+    """Determine the size of the .fil file.
+
+    Parameters
+    ----------
+    fn
+        The .fil file name.
+
+    Returns
+    -------
+    type
+        The file size.
+    """
+
     fileStat = os.stat(fn)
     fileSize = fileStat.st_size
     return fileSize
 
 
-def getCurrentMaxIdxEnd(fn, fileIdx):
+def getCurrentMaxIdxEnd(fn: str, fileIdx: str):
+    """Determine the maximum index in the .fil file depending on the current position.
+    It may be a complete chunk, or less if we are already near the end of the .fil file.
+
+    Parameters
+    ----------
+    fn
+        The .fil file name.
+    fileIdx
+        The current file index.
+
+    Returns
+    -------
+    type
+        The maximum allowed index in the file.
+    """
+
     fileRemainder = fileSize - fileIdx  # remaining file size in BYTES
     idxEnd = fileIdx + (
         FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder
@@ -47,6 +95,20 @@ def getCurrentMaxIdxEnd(fn, fileIdx):
 
 
 def getWords(fn, fileIdx, idxEnd):
+    """Get readable words between the fileIdx and idxEnd.
+
+    Parameters
+    ----------
+    fileIdx
+        The current file index.
+    idxEnd
+        The end index.
+
+    Returns
+    -------
+    type
+        The words.
+    """
     fnMap = np.memmap(
         fn,
         dtype="b",
@@ -54,6 +116,8 @@ def getWords(fn, fileIdx, idxEnd):
     )
     batchChunk = np.copy(fnMap[fileIdx:idxEnd])  # get chunk of file
     words = batchChunk.reshape(-1, FIL_CHUNKSIZE)  # get words
+    # strip unused bytes. Probably they contain checksums,
+    # so we may leverage that feature in a future version.
     words = words[:, 4:-4]
     words = words.reshape(-1, 8)
     return words
