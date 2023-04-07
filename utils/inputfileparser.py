@@ -166,12 +166,14 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
     keyword = currentKeyword
     with open(fileName) as f:
         for l in f:
+            if l.startswith("**"):
+                # line is a comment
+                continue
             lexer = shlex.shlex(l.strip(), posix=True)
             lexer.whitespace_split = True
             lexer.whitespace = ","
             lineElements = [x.strip() for x in lexer]
-            if not lineElements or lineElements[0].startswith("**"):
-                # line is a comment
+            if not lineElements:
                 pass
             elif lineElements[0].startswith("*"):
                 # line is keywordline

@@ -388,6 +388,9 @@ class EnsightExporter:
                 if perSetJobEntry.offset:
                     results = results[:, perSetJobEntry.offset :]
 
+                if perSetJobEntry.extractionSlice:
+                    results = results[:, perSetJobEntry.extractionSlice]
+
                 if perSetJobEntry.extractionFunction:
                     results = np.apply_along_axis(
                         perSetJobEntry.extractionFunction, axis=1, arr=results
@@ -395,9 +398,6 @@ class EnsightExporter:
                     results = np.reshape(
                         results, (results.shape[0], -1)
                     )  # ensure that dimensions are kept
-
-                if perSetJobEntry.extractionSlice:
-                    results = results[:, perSetJobEntry.extractionSlice]
 
                 incrementVariableResultsArrays[elType] = results
                 setVariableDimensions = results.shape[1]
