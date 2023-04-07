@@ -9,9 +9,12 @@
 *ensightPerNodeVariableJob,   name=nodeDisplacements, dimensions=3
 *ensightPerNodeVariableJobEntry, job=nodeDisplacements,  set=ALL, result=U, fillMissingValuesTo=0.0
 
-** reaction forces are written only at the boundary, so we need to specificy that all missing values at interior nodes are zeroed
-*ensightPerNodeVariableJob, set=ALL, name=nodeReactionForces, dimensions=3, 
-*ensightPerNodeVariableJobEntry, set=ALL, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+** reaction forces are written only at the boundary, so we either need to specificy that all missing values at interior nodes are zeroed
+** or we directly export them to the node sets the boundary. Still we need to fill for z-direction
+*ensightPerNodeVariableJob, name=nodeReactionForces, dimensions=3, 
+*ensightPerNodeVariableJobEntry, setType=elSet, set=ALL, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+*ensightPerNodeVariableJobEntry, setType=nSet, set=SETLOAD, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
+*ensightPerNodeVariableJobEntry, setType=nSet, set=SETBOTTOM, job=nodeReactionForces, result=RF, fillMissingValuesTo=0.0
 **
 
 ** nonlocal damage is a scalar, so no problem here

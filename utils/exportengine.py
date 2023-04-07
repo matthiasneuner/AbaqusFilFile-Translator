@@ -10,7 +10,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import numpy as np
 from collections import defaultdict
-from utils.ensightExporter import EnsightExporter
+from utils.ensightexporter import EnsightExporter
+from utils.modeldatabase import Node, NSet, Element, ElSet
+from utils.misc import RecursiveDefaultDict
 
 
 def filInt(word: np.ndarray):
@@ -85,11 +87,7 @@ def filFlag(word):
     return word[0:4].view("<i")[0]
 
 
-def RecursiveDefaultDict():
-    return defaultdict(RecursiveDefaultDict)
-
-
-class ElementDefinition:
+class _ElementDefinition:
     def __init__(self, label: int, elementType: str, nodeLabels: list[int]):
         """A description of an element, not a discrete instance.
 
@@ -108,7 +106,7 @@ class ElementDefinition:
         self.nodeLabels = nodeLabels
 
 
-class ElSetDefinition:
+class _ElSetDefinition:
     def __init__(self, name: str, elementLabels: list[int]):
         """A description of an element set, not a discrete instance.
 
@@ -136,113 +134,7 @@ class ElSetDefinition:
         self.elementLabels += elementLabels
 
 
-class Node:
-    def __init__(self, label: int, coords: np.array):
-        """A spatial node.
-
-        Parameters
-        ----------
-        label
-            The label of this node.
-        coords
-            The coordinates of this node.
-        """
-
-        self.label = label
-        self.coords = coords
-
-
-class Element:
-    def __init__(self, label: int, shape: str, nodes: list[Node]):
-        """A discrete element instance.
-
-        Parameters
-        ----------
-        label
-            The label of this element.
-        shape
-            The shape of this element.
-        nodes
-            The list of nodes.
-        """
-
-        self.label = label
-        self.shape = shape
-        self.nodes = nodes
-
-
-class ElSet:
-    def __init__(self, name: str, elements: list[Element]):
-        """A discrete element set instance.
-
-        Parameters
-        ----------
-        name
-            The name of this set.
-        elements
-            The list of elements in this set.
-        ensightPartID
-            The ensight ID.
-        """
-
-        self.name = name
-        # self.ensightPartID = ensightPartID
-
-        self.elementsByShape = defaultdict(list)
-
-        for element in elements:
-            self.elementsByShape[element.shape].append(element)
-
-        self.reducedNodes = self._getEnsightCompatibleReducedNodes()
-        self.reducedNodeIndices = self._getEnsightCompatibleElementNodeIndices()
-        self.reducedElements = self._getEnsightCompatibleElements()
-        self.reducedNodeCoords3D = self._getEnsightCompatibleReducedNodeCoords()
-
-    def _getEnsightCompatibleReducedNodes(
-        self,
-    ):
-        reducedNodes = dict(
-            [
-                (node.label, node)  # (node, self.allNodes[node])
-                for elementsByShape in self.elementsByShape.values()
-                for element in elementsByShape
-                for node in element.nodes
-            ]
-        )
-
-        return reducedNodes
-
-    def _getEnsightCompatibleReducedNodeCoords(
-        self,
-    ):
-        reducedNodeCoords3D = np.asarray(
-            [node.coords for node in self.reducedNodes.values()]
-        )
-
-        return reducedNodeCoords3D
-
-    def _getEnsightCompatibleElementNodeIndices(
-        self,
-    ):
-        reducedNodeIndices = {
-            node: i for (i, node) in enumerate(self.reducedNodes.keys())
-        }
-        return reducedNodeIndices
-
-    def _getEnsightCompatibleElements(
-        self,
-    ):
-        reducedElements = dict()
-
-        for eShape, elements in self.elementsByShape.items():
-            reducedElements[eShape] = [
-                (e.label, [self.reducedNodeIndices[n.label] for n in e.nodes])
-                for e in elements
-            ]
-        return reducedElements
-
-
-class NSetDefinition:
+class _NSetDefinition:
     def __init__(self, name: str, nodeLabels: list[int]):
         """A description of a node set, not a discrete instance.
 
@@ -265,21 +157,6 @@ class NSetDefinition:
             The list of node labels to be added.
         """
         self.nodeLabels += nodeLabels
-
-
-class NSet:
-    def __init__(self, name, nodes):
-        """A discrete node set instance.
-
-        Parameters
-        ----------
-        name
-            The name of this set.
-        nodes
-            The list of nodes in this set.
-        """
-        self.name = name
-        self.nodes = nodes
 
 
 class ExportEngine:
@@ -401,7 +278,7 @@ class ExportEngine:
 
         if self.currentState == "model setup":
             # we always create the 'ALL' set
-            ALLSet = ElSetDefinition("ALL", list(self.elementDefinitions.keys()))
+            ALLSet = _ElSetDefinition("ALL", list(self.elementDefinitions.keys()))
             self.elSetDefinitions["ALL"] = ALLSet
 
             # Time to create Elements, ElSets and NodeSets from the definitions!
@@ -629,8 +506,8 @@ class ExportEngine:
             The fil record. Contains the element label, and the current quadrature point.
         """
 
-        elNum = filFlag(recordContent[0])
-        self.currentElementNum = elNum
+        elLabel = filFlag(recordContent[0])
+        self.currentElementLabel = elLabel
         self.currentIpt = filFlag(recordContent[1])
 
     def _handlePerElementOutput(self, recordContent: np.ndarray, result: str):
@@ -649,18 +526,18 @@ class ExportEngine:
         currentSetName = self.currentSetName
         currentEnsightElementType = self.currentElementType
         qp = self.currentIpt
-        currentElementNum = self.currentElementNum
+        currentElementLabel = self.currentElementLabel
 
         targetLocation = currentIncrement["elementResults"][result][currentSetName][
             currentEnsightElementType
         ]
 
-        if qp not in targetLocation[currentElementNum]["qps"]:
-            targetLocation[currentElementNum]["qps"][qp] = res
+        if qp not in targetLocation[currentElementLabel]["qps"]:
+            targetLocation[currentElementLabel]["qps"][qp] = res
         else:
             # continuation of an existing record
-            targetLocation[currentElementNum]["qps"][qp] = np.concatenate(
-                (targetLocation[currentElementNum]["qps"][qp], res)
+            targetLocation[currentElementLabel]["qps"][qp] = np.concatenate(
+                (targetLocation[currentElementLabel]["qps"][qp], res)
             )
 
     def _handlePerNodeOutput(self, recordContent: np.ndarray, result: str):
@@ -721,7 +598,7 @@ class ExportEngine:
         if elType in self.ignoreLastNodesForElType:
             nodes = nodes[0 : -self.ignoreLastNodesForElType[elType]]
 
-        self.elementDefinitions[elNum] = ElementDefinition(elNum, elType, nodes)
+        self.elementDefinitions[elNum] = _ElementDefinition(elNum, elType, nodes)
 
     def _addElsetDefinition(self, recordContent):
         """Definition of an Abaqus element set.
@@ -740,7 +617,7 @@ class ExportEngine:
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
 
-        self.elSetDefinitions[setName] = ElSetDefinition(
+        self.elSetDefinitions[setName] = _ElSetDefinition(
             setName, [e for e in abqElements]
         )
 
@@ -777,7 +654,7 @@ class ExportEngine:
         self.currentSetName = setName
         abqNodes = filInt(recordContent[1:])
 
-        self.nSetDefinitions[setName] = NSetDefinition(setName, [n for n in abqNodes])
+        self.nSetDefinitions[setName] = _NSetDefinition(setName, [n for n in abqNodes])
 
     def _contNodeSetDefinition(self, recordContent):
         """Add more nodes labels to a node set definition.

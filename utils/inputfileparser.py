@@ -86,7 +86,7 @@ typeMappings = {
             "name": (str, "export name of the variable"),
             "dimensions": (
                 int,
-                "(optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing components will be zero filled",
+                "(optional), 1/3/6/9 for scalar/vector/tensor/tensor asym; missing components will be zero filled",
             ),
             "timeSet": (int, "(optional), define a timeset, for 'different' timelines"),
         },
@@ -95,7 +95,8 @@ typeMappings = {
         "define an Ensight per node variable for an element set",
         {
             "job": (str, "The associated export job"),
-            "set": (str, "Abaqus element set"),
+            "setType": (str, "elSet or nSet, default=elSet"),
+            "set": (str, "Abaqus setname"),
             "result": (str, "Abaqus variable identifier"),
             "values": (
                 str,

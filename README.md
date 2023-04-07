@@ -26,7 +26,7 @@ Features
 Usage
 ===========================
 
-    python filConverter.py file.fil exportDefinition.inp
+    python filconverter.py file.fil exportDefinition.inp
     
 Take a look at the example in the example directory.
 

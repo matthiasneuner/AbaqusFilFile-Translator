@@ -1,23 +1,35 @@
+"""
+Copyright (C) 2019 Matthias Neuner <matthias.neuner@uibk.ac.at>
+
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+"""
+
 import numpy as np
 import utils.ensightgoldformat as es
-
-
-def sliceFromString(string, shift=0):
-    """generate a slice from a string, which can represent a slice or an index"""
-    if ":" in string:
-        a, b = string.split(":")
-        return slice(int(a) + shift, int(b) + shift)
-    else:
-        return slice(int(string) + shift, int(string) + 1 + shift)
-
-
-def makeExtractionFunction(expression, symbol="x"):
-    """make a simple f(x) expression from string"""
-    return lambda x: eval(expression, globals(), {symbol: x})
+from utils.modeldatabase import Node, NSet, Element, ElSet
+from utils.misc import sliceFromString, makeExtractionFunction
 
 
 class _EnsightExportJob:
-    def __init__(self, name, dimensions, timeSetID, writeEmptyTimeSteps=True):
+    def __init__(
+        self, name: str, dimensions: int, timeSetID: int, writeEmptyTimeSteps=True
+    ):
+        """An Ensight export defines a variable, which might be working on multiple blocks/parts.
+
+        Parameters
+        ----------
+        name
+            The name (of the variable).
+        dimensions
+            The dimensions of the variable.
+        timeSetID
+            The ID of the associated time set.
+        writeEmptyTimeSteps
+            Determine wheter this variable is written even if there is no time associated.
+        """
+
         self.exportName = name
         self.dimensions = dimensions
         self.timeSetID = timeSetID
@@ -28,17 +40,45 @@ class _EnsightExportJob:
 class _EnsightPerSetJobEntry:
     def __init__(
         self,
-        job,
-        setName,
-        result,
-        location,
-        which,
-        extractionSlice=None,
-        extractionFunction=None,
-        offset=None,
+        job: _EnsightExportJob,
+        setType: str,
+        setName: str,
+        result: str,
+        location: str,
+        which: str,
+        extractionSlice: slice = None,
+        extractionFunction: callable = None,
+        offset: int = None,
         fillMissingValuesTo=None,
     ):
-        self.job = job
+        """An entry (for a block/part/elset) for an Ensight export job.
+
+        Parameters
+        ----------
+        job
+            The parent EnsightExportJob.
+        setType
+            'nSet' or 'elSet'.
+        setName
+            The dimensions of the variable.
+        result
+            The name of the result.
+        location
+            Where to find this result (computed, qp, ...).
+        which
+            Which (number of quadrature point, ...).
+        extractionSlice
+            (Optional) A slice for extracting the result from a larger array.
+        extractionFunction
+            (Optional) A function for extracting the result from a larger array.
+        offset
+            (Optional) An offset.
+        fillMissingValuesTo
+            (Optional) If the strored results do not match the output dimension, results are filled to this value.
+        """
+
+        # self.job = job
+        self.setType = setType
         self.setName = setName
         self.extractionSlice = extractionSlice
         self.extractionFunction = extractionFunction
@@ -78,17 +118,26 @@ class EnsightExporter:
             x["element"]: x["shape"] for x in inputFile["*defineElementType"]
         }
 
-        # TODO determine if we can do that at instantiation
-        self.nodes = None
-        self.elements = None
-        self.nSets = None
-        self.elSets = None
+        self.ensightElementTypeMappings["node"] = "point"
 
-    def setupModel(self, nodes, nSets, elements, elSets):
-        self.nodes = nodes
-        self.elements = elements
-        self.nSets = nSets
-        self.elSets = elSets
+        self._setToPartIDMapping = {}
+
+        self._nodes = None
+        self._elements = None
+        self._nSets = None
+        self._elSets = None
+
+    def setupModel(
+        self,
+        nodes: list[Node],
+        nSets: dict[str, NSet],
+        elements: dict[int, Element],
+        elSets: dict[str, ElSet],
+    ):
+        self._nodes = nodes
+        self._elements = elements
+        self._nSets = nSets
+        self._elSets = elSets
 
     def setCurrentTime(self, currentTime: float):
         self.ensightCase.setCurrentTime(currentTime)
@@ -98,7 +147,7 @@ class EnsightExporter:
     ):
         geometryTimesetNumber = None
         geometry = self._createEnsightGeometryFromModel(
-            self.nodes, self.nSets, self.elements, self.elSets
+            self._nodes, self._nSets, self._elements, self._elSets
         )
         self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
 
@@ -152,18 +201,19 @@ class EnsightExporter:
 
             result = entry["result"]
             setName = entry["set"]
-            loc = entry["location"]
+            location = entry["location"]
 
             which = entry["which"]
 
-            if loc == "qps":
+            if location == "qps":
                 which = int(w)
 
             perSetJob = _EnsightPerSetJobEntry(
                 job,
+                "elSet",
                 setName,
                 result=result,
-                location=loc,
+                location=location,
                 which=which,
                 extractionSlice=sliceFromString(entry["values"])
                 if "values" in entry
@@ -185,10 +235,20 @@ class EnsightExporter:
 
         for entry in entryDefinitions:
             job = perNodeVariableJobs[entry["job"]]
+            setType = entry.get("setType", "elSet")
+
             setName = entry["set"]
+
+            if setType.lower() != "elset" and setType.lower() != "nset":
+                raise Exception(
+                    "Ensight per node job {:} entry {:}: set type must be either 'elSet' or 'nSet'!".format(
+                        job, setName
+                    )
+                )
 
             jobEntry = _EnsightPerSetJobEntry(
                 job,
+                setType,
                 setName,
                 result=entry["result"],
                 location=None,
@@ -199,7 +259,7 @@ class EnsightExporter:
                 extractionFunction=makeExtractionFunction(entry["f(x)"])
                 if "f(x)" in entry
                 else None,
-                offset=None,
+                offset=None,  # currently not used
                 fillMissingValuesTo=entry.get("fillMissingValuesTo", None),
             )
 
@@ -210,16 +270,28 @@ class EnsightExporter:
     def _createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
         partsDict = {}
         for setName, jobEntry in exportJob.entries.items():
-            elSet = self.elSets[setName]
-
             print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
+            theSet = None
 
-            # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
-            setNodeIndices = elSet.reducedNodes.keys()
+            if jobEntry.setType == "elSet":
+                elSet = self._elSets[setName]
+                theSet = elSet
 
-            results = [
-                nodeResults[jobEntry.result].get(node, None) for node in setNodeIndices
-            ]
+                # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
+                setNodeIndices = elSet.reducedNodes.keys()
+
+                results = [
+                    nodeResults[jobEntry.result].get(node, None)
+                    for node in setNodeIndices
+                ]
+
+            else:  # it"s a node set !
+                nSet = self._nSets[setName]
+                theSet = nSet
+                results = [
+                    nodeResults[jobEntry.result].get(node.label, None)
+                    for node in nSet.nodes
+                ]
 
             if jobEntry.extractionSlice is not None:
                 results = [
@@ -273,7 +345,7 @@ class EnsightExporter:
                     )
                 )
 
-            partsDict[elSet.ensightPartID] = ("coordinates", results)
+            partsDict[self._setToPartIDMapping[theSet]] = ("coordinates", results)
 
         if partsDict or exportJob.writeEmptyTimeSteps:
             return es.EnsightPerNodeVariable(
@@ -287,7 +359,7 @@ class EnsightExporter:
     ):
         partsDict = {}
         for setName, perSetJobEntry in exportJob.entries.items():
-            elSet = self.elSets[setName]
+            elSet = self._elSets[setName]
             result = perSetJobEntry.result
             location = perSetJobEntry.location
             which = perSetJobEntry.which
@@ -340,7 +412,7 @@ class EnsightExporter:
                     )
                 )
 
-            partsDict[elSet.ensightPartID] = incrementVariableResultsArrays
+            partsDict[self._setToPartIDMapping[elSet]] = incrementVariableResultsArrays
 
         if partsDict or exportJob.writeEmptyTimeSteps:
             return es.EnsightPerElementVariable(
@@ -352,7 +424,9 @@ class EnsightExporter:
         else:
             return None
 
-    def _createEnsightGeometryFromModel(self, nodes, nodeSets, elements, elSets):
+    def _createEnsightGeometryFromModel(
+        self, nodes: list[Node], nSets, elements: dict, elSets: dict[str, ElSet]
+    ):
         partList = []
         partNumber = 1
 
@@ -360,13 +434,38 @@ class EnsightExporter:
             elSetPart = es.EnsightUnstructuredPart(
                 elSet.name,
                 partNumber,
-                elSet._getEnsightCompatibleElements(),
-                elSet._getEnsightCompatibleReducedNodeCoords(),
-                list(elSet._getEnsightCompatibleReducedNodes().keys()),
+                elSet.reducedElements,
+                elSet.reducedNodeCoords3D,
+                list(elSet.reducedNodes.keys()),
                 self.ensightElementTypeMappings,
             )
-            elSet.ensightPartID = partNumber
+            # elSet.ensightPartID = partNumber
+            self._setToPartIDMapping[elSet] = partNumber
             partList.append(elSetPart)
+            partNumber += 1
+
+        for nSet in nSets.values():
+            nSetPart = es.EnsightUnstructuredPart(
+                "NSET_" + nSet.name,
+                partNumber,
+                {
+                    "node": [
+                        (
+                            n.label,
+                            [
+                                i,
+                            ],
+                        )
+                        for i, n in enumerate(nSet.nodes)
+                    ]
+                },
+                np.array([n.coords for n in nSet.nodes]),
+                [n.label for n in nSet.nodes],
+                self.ensightElementTypeMappings,
+            )
+            # nSet.ensightPartID = partNumber
+            partList.append(nSetPart)
+            self._setToPartIDMapping[nSet] = partNumber
             partNumber += 1
 
         geometry = es.EnsightGeometry("geometry", "-", "-", partList, "given", "given")

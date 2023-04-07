@@ -11,9 +11,10 @@ import sys
 import os
 import numpy as np
 import math
-from utils.exportEngine import ExportEngine, filInt
+from utils.exportengine import ExportEngine, filInt
 from utils.inputfileparser import parseInputFile, printKeywords
 import time
+import textwrap
 
 # a word in a .fil file has a size of 8 bytes
 FIL_WORDSIZE = 8
@@ -275,4 +276,9 @@ if __name__ == "__main__":
                     " ", setName, elType, len(elements)
                 )
             )
+    print("{:<60}{:>20}".format("node sets:", len(exportEngine.nSets)))
+    for setName, nSet in exportEngine.nSets.items():
+        print(
+            "{:<4}{:<46}{:10}{:>11}    nodes".format(" ", setName, "", len(nSet.nodes))
+        )
     print("{:<60}{:>20}".format("increments:", exportEngine.nIncrements))
