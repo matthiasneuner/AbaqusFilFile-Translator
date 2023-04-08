@@ -7,9 +7,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
 import numpy as np
-import utils.ensightgoldformat as es
-from utils.modeldatabase import Node, NSet, Element, ElSet
-from utils.misc import sliceFromString, makeExtractionFunction
+import src.ensight.ensightgoldformat as es
+from src.modeldatabase import Node, NSet, Element, ElSet
+from src.misc import sliceFromString, makeExtractionFunction
 
 
 class _EnsightExportJob:

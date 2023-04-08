@@ -11,8 +11,8 @@ import sys
 import os
 import numpy as np
 import math
-from utils.exportengine import ExportEngine, filInt
-from utils.inputfileparser import parseInputFile, printKeywords
+from src.exportengine import ExportEngine, filInt
+from src.inputfileparser import parseInputFile, printKeywords
 import time
 import textwrap
 
@@ -270,10 +270,10 @@ if __name__ == "__main__":
     print("{:<60}{:>20}".format("elements:", len(exportEngine.elements)))
     print("{:<60}{:>20}".format("element sets:", len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
-        for elType, elements in elSet.elementsByShape.items():
+        for i, (elType, elements) in enumerate(elSet.elementsByShape.items()):
             print(
                 "{:<4}{:<46}{:10}{:>11} elements".format(
-                    " ", setName, elType, len(elements)
+                    " ", setName if not i else "", elType, len(elements)
                 )
             )
     print("{:<60}{:>20}".format("node sets:", len(exportEngine.nSets)))

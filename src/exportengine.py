@@ -10,9 +10,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import numpy as np
 from collections import defaultdict
-from utils.ensightexporter import EnsightExporter
-from utils.modeldatabase import Node, NSet, Element, ElSet
-from utils.misc import RecursiveDefaultDict
+from src.ensight.ensightexporter import EnsightExporter
+from src.modeldatabase import Node, NSet, Element, ElSet
+from src.misc import RecursiveDefaultDict
 
 
 def filInt(word: np.ndarray):
