@@ -27,14 +27,14 @@ def writeC80(f, string):
 ensightPerNodeVariableTypes = {
     1: "scalar per node",
     3: "vector per node",
-    6: "tensor per node",
+    6: "tensor symm per node",
     9: "tensor asym per node",
 }
 
 ensightPerElementVariableTypes = {
     1: "scalar per element",
     3: "vector per element",
-    6: "tensor per element",
+    6: "tensor symm per element",
     9: "tensor asym per element",
 }
 
@@ -337,7 +337,7 @@ class EnsightChunkWiseCase:
 
             cf.write("TIME\n")
             for setNum, timeSet in self.timeAndFileSets.items():
-                cf.write("time set: " + str(setNum) + " noDesc\n")
+                cf.write("time set: " + str(setNum) + " no description\n")
                 cf.write("number of steps: " + str(len(timeSet.timeValues)) + "\n")
                 cf.write(
                     "filename start number: " + str(timeSet.fileNameStartNumber) + "\n"

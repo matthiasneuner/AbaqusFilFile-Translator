@@ -269,8 +269,8 @@ class EnsightExporter:
 
     def _createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
         partsDict = {}
-        for setName, jobEntry in exportJob.entries.items():
-            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
+        for i, (setName, jobEntry) in enumerate(exportJob.entries.items()):
+            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
             theSet = None
 
             if jobEntry.setType == "elSet":
@@ -358,7 +358,7 @@ class EnsightExporter:
         self, exportJob, elementResults
     ):
         partsDict = {}
-        for setName, perSetJobEntry in exportJob.entries.items():
+        for i, (setName, perSetJobEntry) in enumerate(exportJob.entries.items()):
             elSet = self._elSets[setName]
             result = perSetJobEntry.result
             location = perSetJobEntry.location
@@ -367,7 +367,7 @@ class EnsightExporter:
             incrementVariableResults = elementResults[result][setName]
             incrementVariableResultsArrays = {}
 
-            print(" {:<20} / {:<28}".format(exportJob.exportName, setName))
+            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
 
             for elType, elDict in incrementVariableResults.items():
                 try:

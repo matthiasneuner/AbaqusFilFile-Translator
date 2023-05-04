@@ -325,7 +325,6 @@ class ExportEngine:
             self.ensightExporter.setCurrentTime(self.currentIncrement["tTotal"])
             self.timeHistory.append(self.currentIncrement["tTotal"])
 
-            print("*" * 80)
             print("increment contains element results for")
             print(
                 "\n".join(
@@ -524,12 +523,12 @@ class ExportEngine:
         res = filDouble(recordContent)
         currentIncrement = self.currentIncrement
         currentSetName = self.currentSetName
-        currentEnsightElementType = self.currentElementType
+        currentElementType = self.currentElementType
         qp = self.currentIpt
         currentElementLabel = self.currentElementLabel
 
         targetLocation = currentIncrement["elementResults"][result][currentSetName][
-            currentEnsightElementType
+            currentElementType
         ]
 
         if qp not in targetLocation[currentElementLabel]["qps"]:
@@ -693,12 +692,13 @@ class ExportEngine:
         currentIncrement["timeInc"] = timeInc
         currentIncrement["elementResults"] = RecursiveDefaultDict()
         currentIncrement["nodeResults"] = RecursiveDefaultDict()
-        print("*" * 80)
+        print("+" + "-" * 78 + "+")
         print(
-            "processing increment {:>5}  tTotal:{:>16.5f}".format(
-                self.nIncrements, self.currentIncrement["tTotal"]
+            "| processing increment {:>5} | step time:{:>11.5f} | total time:{:>12.5f} |".format(
+                self.nIncrements, self.currentIncrement["tStep"], self.currentIncrement["tTotal"]
             )
         )
+        print("+" + "-" * 78 + "+")
 
     def _addLabelCrossReference(self, recordContent):
         """Reference to a label using an integer.
