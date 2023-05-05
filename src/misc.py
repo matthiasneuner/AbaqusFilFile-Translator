@@ -1,8 +1,21 @@
 from collections import defaultdict
 
 
-def RecursiveDefaultDict():
-    return defaultdict(RecursiveDefaultDict)
+class RecursiveDefaultDict(dict):
+    # return defaultdict(RecursiveDefaultDict)
+
+    def __init__(self, maxLevels):
+        self.level = maxLevels
+        return super().__init__()
+
+    def __getitem__(self, key):
+        if key in self:
+            return self.get(key)
+
+        if self.level > 0:
+            return self.setdefault(key, RecursiveDefaultDict(self.level - 1))
+
+        return self.setdefault(key, dict())
 
 
 def sliceFromString(string: str, shift: int = 0):

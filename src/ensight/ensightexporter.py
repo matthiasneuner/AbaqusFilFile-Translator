@@ -270,7 +270,11 @@ class EnsightExporter:
     def _createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
         partsDict = {}
         for i, (setName, jobEntry) in enumerate(exportJob.entries.items()):
-            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
+            print(
+                " {:<20} ... {:<28}".format(
+                    exportJob.exportName if not i else "", setName
+                )
+            )
             theSet = None
 
             if jobEntry.setType == "elSet":
@@ -364,10 +368,16 @@ class EnsightExporter:
             location = perSetJobEntry.location
             which = perSetJobEntry.which
 
+            setVariableDimensions = None
+
             incrementVariableResults = elementResults[result][setName]
             incrementVariableResultsArrays = {}
 
-            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
+            print(
+                " {:<20} ... {:<28}".format(
+                    exportJob.exportName if not i else "", setName
+                )
+            )
 
             for elType, elDict in incrementVariableResults.items():
                 try:
@@ -401,6 +411,14 @@ class EnsightExporter:
 
                 incrementVariableResultsArrays[elType] = results
                 setVariableDimensions = results.shape[1]
+
+            if not setVariableDimensions:
+                raise Exception(
+                    "No results for set {:} in job '{:}'. ".format(
+                        setName,
+                        exportJob.exportName,
+                    )
+                )
 
             if setVariableDimensions != exportJob.dimensions:
                 raise Exception(

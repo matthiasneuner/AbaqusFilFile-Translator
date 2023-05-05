@@ -690,12 +690,21 @@ class ExportEngine:
         currentIncrement["tStep"] = tStep
         currentIncrement["nStep"] = nStep
         currentIncrement["timeInc"] = timeInc
-        currentIncrement["elementResults"] = RecursiveDefaultDict()
-        currentIncrement["nodeResults"] = RecursiveDefaultDict()
+
+        # a level 4 RecursiveDefaultDict
+        currentIncrement["elementResults"] = RecursiveDefaultDict(
+            4
+        )  # result / set / shape / element number / location
+
+        # a level 2 RecursiveDefaultDict
+        currentIncrement["nodeResults"] = RecursiveDefaultDict(2)  # result / node
+
         print("+" + "-" * 78 + "+")
         print(
             "| processing increment {:>5} | step time:{:>11.5f} | total time:{:>12.5f} |".format(
-                self.nIncrements, self.currentIncrement["tStep"], self.currentIncrement["tTotal"]
+                self.nIncrements,
+                self.currentIncrement["tStep"],
+                self.currentIncrement["tTotal"],
             )
         )
         print("+" + "-" * 78 + "+")
