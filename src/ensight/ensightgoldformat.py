@@ -355,13 +355,13 @@ class EnsightChunkWiseCase:
             if self.writeTransientSingleFiles:
                 cf.write("FILE\n")
                 for timeSet in self.timeAndFileSets.values():
-                    cf.write("file set: {:} \n".format(timeSet.number))
-                    cf.write("number of steps: {:} \n".format(len(timeSet.timeValues)))
+                    cf.write("file set: {:}\n".format(timeSet.number))
+                    cf.write("number of steps: {:}\n".format(len(timeSet.timeValues)))
 
             cf.write("GEOMETRY\n")
             for geometryName, tAndFSetNum in self.geometryTrends.items():
                 cf.write(
-                    "model: {:} \n".format(
+                    "model: {:}\n".format(
                         self.caseFileNamePrefix + geometryName + ".geo"
                     )
                 )
