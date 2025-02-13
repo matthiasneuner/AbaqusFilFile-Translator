@@ -181,16 +181,12 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                 keyword = lineElements[0]
 
                 if keyword not in fileDict:
-                    raise InputSyntaxException(
-                        "Invalid keyword {:} provided".format(keyword)
-                    )
+                    raise InputSyntaxException("Invalid keyword {:} provided".format(keyword))
 
                 optionAssignments = lineElements[1:]
 
                 objectentry = {}
-                objectentry[
-                    "inputFile"
-                ] = fileName  # save also the filename of the original inputfile!
+                objectentry["inputFile"] = fileName  # save also the filename of the original inputfile!
 
                 for ass in optionAssignments:
                     opts = ass.split("=")
@@ -200,18 +196,14 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                         mType = getMapType(keyword, optKey)
                     except KeyError:
                         raise InputSyntaxException(
-                            "'{:}' is not a valid option for keyword {:}".format(
-                                optKey, keyword
-                            )
+                            "'{:}' is not a valid option for keyword {:}".format(optKey, keyword)
                         )
 
                     try:
                         objectentry[optKey] = mType(val)
                     except:
                         raise InputSyntaxException(
-                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(
-                                val, mType, optKey, keyword
-                            )
+                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(val, mType, optKey, keyword)
                         )
 
                 # special treatment for *include:

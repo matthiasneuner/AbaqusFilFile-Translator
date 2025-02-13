@@ -61,9 +61,7 @@ class EnsightUnstructuredPart:
         self.partNumber = partNumber
         self.ensightElementTypeMappings = ensightElementTypeMappings
 
-    def writeToFile(
-        self, binaryFileHandle, printNodeLabels=True, printElementLabels=True
-    ):
+    def writeToFile(self, binaryFileHandle, printNodeLabels=True, printElementLabels=True):
         nNodes = self.nodes.shape[0]
         f = binaryFileHandle  # shortcut to functions
 
@@ -161,9 +159,7 @@ class EnsightVariableTrend:
     ):
         self.timeSet = ensightTimeSet
         self.variableName = variableName
-        self.variableList = (
-            ensightVariableList if ensightVariableList is not None else []
-        )
+        self.variableList = ensightVariableList if ensightVariableList is not None else []
         self.variableType = variableType
         self.description = description
 
@@ -177,9 +173,7 @@ class EnsightPerNodeVariable:
     def __init__(self, name, variableDimension, ensightPartsDict=None):
         self.name = name
         self.description = name
-        self.partsDict = (
-            ensightPartsDict or {}
-        )  # { EnsightPart: np.array(variableValues) }
+        self.partsDict = ensightPartsDict or {}  # { EnsightPart: np.array(variableValues) }
         self.variableDimension = variableDimension
         self.varType = ensightPerNodeVariableTypes[variableDimension]
 
@@ -197,9 +191,7 @@ class EnsightPerNodeVariable:
             if values.shape[1] < self.variableDimension:
                 writeCFloat(
                     f,
-                    np.zeros(
-                        (values.shape[0], self.variableDimension - values.shape[1])
-                    ),
+                    np.zeros((values.shape[0], self.variableDimension - values.shape[1])),
                 )
 
 
@@ -209,9 +201,7 @@ class EnsightPerElementVariable:
     Each part-variable assignment is defined by a dictionary entry of type: { EnsightPart: np.array(variableValues) }
     """
 
-    def __init__(
-        self, name, variableDimension, ensightPartsDict, ensightElementTypeMappings
-    ):
+    def __init__(self, name, variableDimension, ensightPartsDict, ensightElementTypeMappings):
         self.name = name
         self.description = name
         self.partsDict = ensightPartsDict
@@ -231,9 +221,7 @@ class EnsightPerElementVariable:
                 if values.shape[1] < self.variableDimension:
                     writeCFloat(
                         f,
-                        np.zeros(
-                            (values.shape[0], self.variableDimension - values.shape[1])
-                        ),
+                        np.zeros((values.shape[0], self.variableDimension - values.shape[1])),
                     )
 
 
@@ -255,20 +243,11 @@ class EnsightChunkWiseCase:
     def writeGeometryTrendChunk(self, ensightGeometry, timeAndFileSetNumber=1):
         if timeAndFileSetNumber != None:
             if not timeAndFileSetNumber in self.timeAndFileSets:
-                self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(
-                    timeAndFileSetNumber, "timeset", 0, 1
-                )
-                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
-                    self.currentTime
-                )
+                self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(timeAndFileSetNumber, "timeset", 0, 1)
+                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
 
-            elif (
-                self.currentTime
-                > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]
-            ):
-                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
-                    self.currentTime
-                )
+            elif self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]:
+                self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
 
         if ensightGeometry.name not in self.fileHandles:
             fileName = ("{:}" * 3).format(
@@ -291,24 +270,14 @@ class EnsightChunkWiseCase:
 
     def writeVariableTrendChunk(self, ensightVariable, timeAndFileSetNumber=2):
         if not timeAndFileSetNumber in self.timeAndFileSets:
-            self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(
-                timeAndFileSetNumber, "timeset", 0, 1
-            )
-            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
-                self.currentTime
-            )
+            self.timeAndFileSets[timeAndFileSetNumber] = EnsightTimeSet(timeAndFileSetNumber, "timeset", 0, 1)
+            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
 
-        elif (
-            self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]
-        ):
-            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(
-                self.currentTime
-            )
+        elif self.currentTime > self.timeAndFileSets[timeAndFileSetNumber].timeValues[-1]:
+            self.timeAndFileSets[timeAndFileSetNumber].timeValues.append(self.currentTime)
 
         if ensightVariable.name not in self.fileHandles:
-            fileName = ("{:}" * 3).format(
-                self.caseFileNamePrefix, ensightVariable.name, ".var"
-            )
+            fileName = ("{:}" * 3).format(self.caseFileNamePrefix, ensightVariable.name, ".var")
             self.fileHandles[ensightVariable.name] = open(fileName, mode="wb")
 
         f = self.fileHandles[ensightVariable.name]
@@ -339,12 +308,8 @@ class EnsightChunkWiseCase:
             for setNum, timeSet in self.timeAndFileSets.items():
                 cf.write("time set: " + str(setNum) + " no description\n")
                 cf.write("number of steps: " + str(len(timeSet.timeValues)) + "\n")
-                cf.write(
-                    "filename start number: " + str(timeSet.fileNameStartNumber) + "\n"
-                )
-                cf.write(
-                    "filename increment: " + str(timeSet.fileNameNumberIncrement) + "\n"
-                )
+                cf.write("filename start number: " + str(timeSet.fileNameStartNumber) + "\n")
+                cf.write("filename increment: " + str(timeSet.fileNameNumberIncrement) + "\n")
                 cf.write("time values: ")
                 for i, timeVal in enumerate(timeSet.timeValues):
                     if discardTimeMarks:
@@ -360,11 +325,7 @@ class EnsightChunkWiseCase:
 
             cf.write("GEOMETRY\n")
             for geometryName, tAndFSetNum in self.geometryTrends.items():
-                cf.write(
-                    "model: {:}\n".format(
-                        self.caseFileNamePrefix + geometryName + ".geo"
-                    )
-                )
+                cf.write("model: {:}\n".format(self.caseFileNamePrefix + geometryName + ".geo"))
 
             cf.write("VARIABLE\n")
             for variableName, (

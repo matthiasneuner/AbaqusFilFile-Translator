@@ -13,9 +13,7 @@ from src.misc import sliceFromString, makeExtractionFunction
 
 
 class _EnsightExportJob:
-    def __init__(
-        self, name: str, dimensions: int, timeSetID: int, writeEmptyTimeSteps=True
-    ):
+    def __init__(self, name: str, dimensions: int, timeSetID: int, writeEmptyTimeSteps=True):
         """An Ensight export defines a variable, which might be working on multiple blocks/parts.
 
         Parameters
@@ -86,11 +84,7 @@ class _EnsightPerSetJobEntry:
         self.result = result
         self.location = location
         self.which = which
-        self.fillMissingValuesTo = (
-            fillMissingValuesTo
-            if fillMissingValuesTo is None
-            else float(fillMissingValuesTo)
-        )
+        self.fillMissingValuesTo = fillMissingValuesTo if fillMissingValuesTo is None else float(fillMissingValuesTo)
 
 
 class EnsightExporter:
@@ -98,12 +92,8 @@ class EnsightExporter:
         self.ensightCase = es.EnsightChunkWiseCase(".", caseName)
         self.ensightCaseDiscardTimeMarks = False
 
-        self.perElementJobs = self._collectExportJobs(
-            inputFile["*ensightPerElementVariableJob"]
-        )
-        self.perNodeJobs = self._collectExportJobs(
-            inputFile["*ensightPerNodeVariableJob"]
-        )
+        self.perElementJobs = self._collectExportJobs(inputFile["*ensightPerElementVariableJob"])
+        self.perNodeJobs = self._collectExportJobs(inputFile["*ensightPerNodeVariableJob"])
 
         self.perElementJobs = self._collectPerElementJobEntries(
             inputFile["*ensightPerElementVariableJobEntry"],
@@ -114,9 +104,7 @@ class EnsightExporter:
             self.perNodeJobs,
         )
 
-        self.ensightElementTypeMappings = {
-            x["element"]: x["shape"] for x in inputFile["*defineElementType"]
-        }
+        self.ensightElementTypeMappings = {x["element"]: x["shape"] for x in inputFile["*defineElementType"]}
 
         self.ensightElementTypeMappings["node"] = "point"
 
@@ -146,31 +134,21 @@ class EnsightExporter:
         self,
     ):
         geometryTimesetNumber = None
-        geometry = self._createEnsightGeometryFromModel(
-            self._nodes, self._nSets, self._elements, self._elSets
-        )
+        geometry = self._createEnsightGeometryFromModel(self._nodes, self._nSets, self._elements, self._elSets)
         self.ensightCase.writeGeometryTrendChunk(geometry, geometryTimesetNumber)
 
     def exportPerNodeVariables(self, nodeResults):
         for exportJob in self.perNodeJobs.values():
-            enSightVar = self._createEnsightPerNodeVariableFromPerNodeJob(
-                exportJob, nodeResults
-            )
+            enSightVar = self._createEnsightPerNodeVariableFromPerNodeJob(exportJob, nodeResults)
             if enSightVar:
-                self.ensightCase.writeVariableTrendChunk(
-                    enSightVar, exportJob.timeSetID
-                )
+                self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
                 del enSightVar
 
     def exportPerElementVariables(self, elementResults):
         for exportJob in self.perElementJobs.values():
-            enSightVar = self._createEnsightPerElementVariableFromPerElementJob(
-                exportJob, elementResults
-            )
+            enSightVar = self._createEnsightPerElementVariableFromPerElementJob(exportJob, elementResults)
             if enSightVar:
-                self.ensightCase.writeVariableTrendChunk(
-                    enSightVar, exportJob.timeSetID
-                )
+                self.ensightCase.writeVariableTrendChunk(enSightVar, exportJob.timeSetID)
                 del enSightVar
 
     def finalize(self, closeFileHandles):
@@ -186,9 +164,7 @@ class EnsightExporter:
             dimensions = int(jobDef["dimensions"])
             timeSet = jobDef.get("timeSet", 1)
 
-            jobs[jobName] = _EnsightExportJob(
-                jobName, dimensions, timeSet, writeEmptyTimeSteps=True
-            )
+            jobs[jobName] = _EnsightExportJob(jobName, dimensions, timeSet, writeEmptyTimeSteps=True)
 
         return jobs
 
@@ -215,12 +191,8 @@ class EnsightExporter:
                 result=result,
                 location=location,
                 which=which,
-                extractionSlice=sliceFromString(entry["values"])
-                if "values" in entry
-                else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"])
-                if "f(x)" in entry
-                else None,
+                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
                 offset=None,
             )
 
@@ -253,12 +225,8 @@ class EnsightExporter:
                 result=entry["result"],
                 location=None,
                 which=None,
-                extractionSlice=sliceFromString(entry["values"])
-                if "values" in entry
-                else None,
-                extractionFunction=makeExtractionFunction(entry["f(x)"])
-                if "f(x)" in entry
-                else None,
+                extractionSlice=sliceFromString(entry["values"]) if "values" in entry else None,
+                extractionFunction=makeExtractionFunction(entry["f(x)"]) if "f(x)" in entry else None,
                 offset=None,  # currently not used
                 fillMissingValuesTo=entry.get("fillMissingValuesTo", None),
             )
@@ -270,11 +238,7 @@ class EnsightExporter:
     def _createEnsightPerNodeVariableFromPerNodeJob(self, exportJob, nodeResults):
         partsDict = {}
         for i, (setName, jobEntry) in enumerate(exportJob.entries.items()):
-            print(
-                " {:<20} ... {:<28}".format(
-                    exportJob.exportName if not i else "", setName
-                )
-            )
+            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
             theSet = None
 
             if jobEntry.setType == "elSet":
@@ -284,44 +248,33 @@ class EnsightExporter:
                 # collect all result, do not yet make a numpy array, as the results array might be ragged, or not present for all nodes
                 setNodeIndices = elSet.reducedNodes.keys()
 
-                results = [
-                    nodeResults[jobEntry.result].get(node, None)
-                    for node in setNodeIndices
-                ]
+                results = [nodeResults[jobEntry.result].get(node, None) for node in setNodeIndices]
 
             else:  # it"s a node set !
                 nSet = self._nSets[setName]
                 theSet = nSet
-                results = [
-                    nodeResults[jobEntry.result].get(node.label, None)
-                    for node in nSet.nodes
-                ]
+                results = [nodeResults[jobEntry.result].get(node.label, None) for node in nSet.nodes]
 
             if jobEntry.extractionSlice is not None:
-                results = [
-                    r[jobEntry.extractionSlice] if r is not None else r for r in results
-                ]
+                results = [r[jobEntry.extractionSlice] if r is not None else r for r in results]
 
             if jobEntry.extractionFunction is not None:
-                results = [
-                    perSetJobEntry.extractionFunction(r) if r is not None else r
-                    for r in results
-                ]
+                results = [perSetJobEntry.extractionFunction(r) if r is not None else r for r in results]
 
             if jobEntry.fillMissingValuesTo is not None:
-                defaultResult = np.full(
-                    (exportJob.dimensions,), jobEntry.fillMissingValuesTo
-                )
+                defaultResult = np.full((exportJob.dimensions,), jobEntry.fillMissingValuesTo)
                 d = exportJob.dimensions
 
                 # first fill up all the results we have
                 results = [
-                    np.append(
-                        r,
-                        (jobEntry.fillMissingValuesTo,) * (d - r.shape[0]),
+                    (
+                        np.append(
+                            r,
+                            (jobEntry.fillMissingValuesTo,) * (d - r.shape[0]),
+                        )
+                        if r is not None and r.shape[0] != d
+                        else r
                     )
-                    if r is not None and r.shape[0] != d
-                    else r
                     for r in results
                 ]
 
@@ -352,15 +305,11 @@ class EnsightExporter:
             partsDict[self._setToPartIDMapping[theSet]] = ("coordinates", results)
 
         if partsDict or exportJob.writeEmptyTimeSteps:
-            return es.EnsightPerNodeVariable(
-                exportJob.exportName, exportJob.dimensions, partsDict
-            )
+            return es.EnsightPerNodeVariable(exportJob.exportName, exportJob.dimensions, partsDict)
         else:
             return None
 
-    def _createEnsightPerElementVariableFromPerElementJob(
-        self, exportJob, elementResults
-    ):
+    def _createEnsightPerElementVariableFromPerElementJob(self, exportJob, elementResults):
         partsDict = {}
         for i, (setName, perSetJobEntry) in enumerate(exportJob.entries.items()):
             elSet = self._elSets[setName]
@@ -373,19 +322,12 @@ class EnsightExporter:
             incrementVariableResults = elementResults[result][setName]
             incrementVariableResultsArrays = {}
 
-            print(
-                " {:<20} ... {:<28}".format(
-                    exportJob.exportName if not i else "", setName
-                )
-            )
+            print(" {:<20} ... {:<28}".format(exportJob.exportName if not i else "", setName))
 
             for elType, elDict in incrementVariableResults.items():
                 try:
                     results = np.asarray(
-                        [
-                            elDict[el.label][location][which]
-                            for el in elSet.elementsByShape[elType]
-                        ],
+                        [elDict[el.label][location][which] for el in elSet.elementsByShape[elType]],
                         dtype=float,
                     )
                 except:
@@ -402,12 +344,8 @@ class EnsightExporter:
                     results = results[:, perSetJobEntry.extractionSlice]
 
                 if perSetJobEntry.extractionFunction:
-                    results = np.apply_along_axis(
-                        perSetJobEntry.extractionFunction, axis=1, arr=results
-                    )
-                    results = np.reshape(
-                        results, (results.shape[0], -1)
-                    )  # ensure that dimensions are kept
+                    results = np.apply_along_axis(perSetJobEntry.extractionFunction, axis=1, arr=results)
+                    results = np.reshape(results, (results.shape[0], -1))  # ensure that dimensions are kept
 
                 incrementVariableResultsArrays[elType] = results
                 setVariableDimensions = results.shape[1]
@@ -442,9 +380,7 @@ class EnsightExporter:
         else:
             return None
 
-    def _createEnsightGeometryFromModel(
-        self, nodes: list[Node], nSets, elements: dict, elSets: dict[str, ElSet]
-    ):
+    def _createEnsightGeometryFromModel(self, nodes: list[Node], nSets, elements: dict, elSets: dict[str, ElSet]):
         partList = []
         partNumber = 1
 
