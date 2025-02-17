@@ -212,6 +212,7 @@ class ExportEngine:
             101: ("U output", lambda x: self._handlePerNodeOutput(x, "U")),
             102: ("V output", lambda x: self._handlePerNodeOutput(x, "V")),
             103: ("A output", lambda x: self._handlePerNodeOutput(x, "A")),
+            108: ("POR output", lambda x: self._handlePerNodeOutput(x, "POR")),
             104: ("RF output", lambda x: self._handlePerNodeOutput(x, "RF")),
             201: ("NT output", lambda x: self._handlePerNodeOutput(x, "NT")),
             1501: ("Surface definition header", self._surfaceDefHeader),
