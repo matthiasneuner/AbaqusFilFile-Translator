@@ -90,18 +90,14 @@ class ElSet:
     def _getEnsightCompatibleReducedNodeCoords(
         self,
     ):
-        reducedNodeCoords3D = np.asarray(
-            [node.coords for node in self.reducedNodes.values()]
-        )
+        reducedNodeCoords3D = np.asarray([node.coords for node in self.reducedNodes.values()])
 
         return reducedNodeCoords3D
 
     def _getEnsightCompatibleElementNodeIndices(
         self,
     ):
-        reducedNodeIndices = {
-            node: i for (i, node) in enumerate(self.reducedNodes.keys())
-        }
+        reducedNodeIndices = {node: i for (i, node) in enumerate(self.reducedNodes.keys())}
         return reducedNodeIndices
 
     def _getEnsightCompatibleElements(
@@ -110,10 +106,7 @@ class ElSet:
         reducedElements = dict()
 
         for eShape, elements in self.elementsByShape.items():
-            reducedElements[eShape] = [
-                (e.label, [self.reducedNodeIndices[n.label] for n in e.nodes])
-                for e in elements
-            ]
+            reducedElements[eShape] = [(e.label, [self.reducedNodeIndices[n.label] for n in e.nodes]) for e in elements]
         return reducedElements
 
 

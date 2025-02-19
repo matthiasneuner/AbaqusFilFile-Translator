@@ -144,6 +144,14 @@ typeMappings = {
             ),
         },
     ),
+    "*substituteElSet": (
+        "define an substitution for an element set in the .fil file. This is useful if you want to replace an element set with another one."
+        "For instance Abaqus/Explicit is know to write faulty element sets to the *.inp file if multiple cpu cores are used in combination with VUEL/VUMAT. ",
+        {
+            "elSet": (str, "The name of the set to be substituted"),
+            "data": ("string", "Abaqus like element set definition lines, i.e., the list of element labels."),
+        },
+    ),
     "*include": (
         "(optional) load extra .inp file (fragment), use relative path to current .inp",
         {"input": (str, "filename")},
@@ -181,16 +189,12 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                 keyword = lineElements[0]
 
                 if keyword not in fileDict:
-                    raise InputSyntaxException(
-                        "Invalid keyword {:} provided".format(keyword)
-                    )
+                    raise InputSyntaxException("Invalid keyword {:} provided".format(keyword))
 
                 optionAssignments = lineElements[1:]
 
                 objectentry = {}
-                objectentry[
-                    "inputFile"
-                ] = fileName  # save also the filename of the original inputfile!
+                objectentry["inputFile"] = fileName  # save also the filename of the original inputfile!
 
                 for ass in optionAssignments:
                     opts = ass.split("=")
@@ -200,18 +204,14 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                         mType = getMapType(keyword, optKey)
                     except KeyError:
                         raise InputSyntaxException(
-                            "'{:}' is not a valid option for keyword {:}".format(
-                                optKey, keyword
-                            )
+                            "'{:}' is not a valid option for keyword {:}".format(optKey, keyword)
                         )
 
                     try:
                         objectentry[optKey] = mType(val)
                     except:
                         raise InputSyntaxException(
-                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(
-                                val, mType, optKey, keyword
-                            )
+                            "'{:}' is not of type {:} for option {:} in keyword {:}".format(val, mType, optKey, keyword)
                         )
 
                 # special treatment for *include:
@@ -225,6 +225,12 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                     keyword = lastkeyword
                 else:
                     fileDict[keyword].append(objectentry)
+            else:
+                # line is a dataline
+                if "data" not in typeMappings[keyword][1]:
+                    raise KeyError("{:} expects no data lines".format(keyword))
+
+                fileDict[keyword][-1].setdefault("data", list()).append(lineElements)
     return fileDict
 
 

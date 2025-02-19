@@ -87,9 +87,7 @@ def getCurrentMaxIdxEnd(fn: str, fileIdx: str):
     """
 
     fileRemainder = fileSize - fileIdx  # remaining file size in BYTES
-    idxEnd = fileIdx + (
-        FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder
-    )  # get end index
+    idxEnd = fileIdx + (FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder)  # get end index
     # in case we are operating on an unfinished file and 'catch' an unfinished chunk
     idxEnd -= idxEnd % FIL_CHUNKSIZE
     return idxEnd
@@ -139,9 +137,7 @@ if __name__ == "__main__":
         help="The .inp export definition file",
         type=str,
     )
-    parser.add_argument(
-        "--keywords", dest="kw", action="store_true", help="print keywords"
-    )
+    parser.add_argument("--keywords", dest="kw", action="store_true", help="print keywords")
     args = parser.parse_args()
 
     if args.kw:
@@ -155,8 +151,9 @@ if __name__ == "__main__":
 
     exportName = "".join(fn.split("/")[-1].split(".")[-2])
     lockFile = fn.split(".")[0] + ".lck"
-    print("{:<20}{:>60}".format("opening file", fn))
-    print("*" * 80)
+    print("+" + "-" * 78 + "+")
+    print("| Opening file {:<64}|".format(os.path.basename(fn)))
+    print("+" + "-" * 78 + "+")
 
     exportEngine = ExportEngine(exportJobs, exportName)
 
@@ -183,9 +180,7 @@ if __name__ == "__main__":
                 while wordIdx < len(words):
                     recordLength = filInt(words[wordIdx])[0]
                     if recordLength <= 2:
-                        print(
-                            "found a record with 0 length content, possible an aborted Abaqus analysis"
-                        )
+                        print("found a record with 0 length content, possible an aborted Abaqus analysis")
                         if os.path.exists(lockFile):
                             print("found .lck file, waiting for new result .fil data")
                             time.sleep(5)
@@ -203,20 +198,12 @@ if __name__ == "__main__":
                     # - set the wordIdx to the end of the so far progressed frame
                     # - move the frame to the wordIDx
                     if wordIdx + recordLength > len(words):
-                        bytesProgressedInCurrentBatch = (
-                            int(math.floor(wordIdx / 512)) * 513 * 8
-                        )
+                        bytesProgressedInCurrentBatch = int(math.floor(wordIdx / 512)) * 513 * 8
 
-                        if (
-                            bytesProgressedInCurrentBatch == 0
-                        ):  # indicator for an aborted analysis
-                            print(
-                                "terminated file, possible an aborted Abaqus analysis"
-                            )
+                        if bytesProgressedInCurrentBatch == 0:  # indicator for an aborted analysis
+                            print("terminated file, possible an aborted Abaqus analysis")
                             if os.path.exists(lockFile):
-                                print(
-                                    "found .lck file, waiting for new result .fil data"
-                                )
+                                print("found .lck file, waiting for new result .fil data")
                                 time.sleep(5)
 
                                 fileSize = getCurrentFileSize(
@@ -231,16 +218,13 @@ if __name__ == "__main__":
                                 break
 
                         fileIdx += bytesProgressedInCurrentBatch  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
-                        wordIdx = (
-                            wordIdx % 512
-                        )  # of course, restart at the present index
+                        wordIdx = wordIdx % 512  # of course, restart at the present index
                         break
 
                     recordType = filInt(words[wordIdx + 1])[0]
+                    # print(recordType)
                     recordContent = words[wordIdx + 2 : wordIdx + recordLength]
-                    success = exportEngine.computeRecord(
-                        recordLength, recordType, recordContent
-                    )
+                    success = exportEngine.computeRecord(recordLength, recordType, recordContent)
                     wordIdx += recordLength
 
                 # clean finish of a batchChunk
@@ -251,9 +235,7 @@ if __name__ == "__main__":
 
             else:
                 if os.path.exists(lockFile):
-                    print(
-                        "found .lck file, waiting for new result .fil data or CTRL-C to finish..."
-                    )
+                    print("found .lck file, waiting for new result .fil data or CTRL-C to finish...")
                     time.sleep(10)
                 else:
                     break
@@ -264,21 +246,19 @@ if __name__ == "__main__":
 
     exportEngine.finalize()
 
-    print("*" * 80)
-    print("Summary of .fil file:")
+    print("+" + "-" * 78 + "+")
+    print("| Summary of {:<66}|".format(os.path.basename(fn)))
+    print("+" + "-" * 78 + "+")
     print("{:<60}{:>20}".format("nodes:", len(exportEngine.nodes)))
     print("{:<60}{:>20}".format("elements:", len(exportEngine.elements)))
     print("{:<60}{:>20}".format("element sets:", len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
         for i, (elType, elements) in enumerate(elSet.elementsByShape.items()):
-            print(
-                "{:<4}{:<46}{:10}{:>11} elements".format(
-                    " ", setName if not i else "", elType, len(elements)
-                )
-            )
+            print("{:<4}{:<46}{:10}{:>11} elements".format(" ", setName if not i else "", elType, len(elements)))
     print("{:<60}{:>20}".format("node sets:", len(exportEngine.nSets)))
     for setName, nSet in exportEngine.nSets.items():
-        print(
-            "{:<4}{:<46}{:10}{:>11}    nodes".format(" ", setName, "", len(nSet.nodes))
-        )
+        print("{:<4}{:<46}{:10}{:>11}    nodes".format(" ", setName, "", len(nSet.nodes)))
     print("{:<60}{:>20}".format("increments:", exportEngine.nIncrements))
+    print("+" + "-" * 78 + "+")
+    print("|{:78}|".format(" Finished"))
+    print("+" + "-" * 78 + "+")
