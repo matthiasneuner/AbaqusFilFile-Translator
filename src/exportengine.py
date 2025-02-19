@@ -191,6 +191,7 @@ class ExportEngine:
         self.elements = {}
         self.nSets = {}
         self.elSets = {}
+        self._substituteElSets = self._assembleSubsitutionElSets(inputFile)
 
         self.currentState = "model setup"
         self.currentIncrement = {}
@@ -221,7 +222,7 @@ class ExportEngine:
             1901: ("node definition", self._addNode),
             1902: ("active dof", lambda x: None),
             1911: ("output request definition", self._outputDefinition),
-            1921: ("heading", lambda x: None),
+            1921: ("heading", self._printHeading1921),
             1922: ("heading", lambda x: None),
             1931: ("node set definition", self._createNodeSetDefinition),
             1932: ("node set definition cont.", self._contNodeSetDefinition),
@@ -280,7 +281,19 @@ class ExportEngine:
                     elDef.shape,
                     [self.nodes[label] for label in elDef.nodeLabels],
                 )
+            # replace all label references by the respective labels
+            for key, label in self.labelCrossReferences.items():
+                strKey = key  # str(key)
+                if strKey in self.nSetDefinitions:
+                    self.nSetDefinitions[label] = self.nSetDefinitions[strKey]
+                    self.nSetDefinitions[label].name = label
+                    del self.nSetDefinitions[strKey]
+                if strKey in self.elSetDefinitions:
+                    self.elSetDefinitions[label] = self.elSetDefinitions[strKey]
+                    self.elSetDefinitions[label].name = label
+                    del self.elSetDefinitions[strKey]
 
+            self.elSetDefinitions.update(self._substituteElSets)
             for elSetDef in self.elSetDefinitions.values():
 
                 try:
@@ -299,18 +312,6 @@ class ExportEngine:
 
             for nSetDef in self.nSetDefinitions.values():
                 self.nSets[nSetDef.name] = NSet(nSetDef.name, [self.nodes[n] for n in nSetDef.nodeLabels])
-
-            # replace all label references by the respective labels
-            for key, label in self.labelCrossReferences.items():
-                strKey = key  # str(key)
-                if strKey in self.nSets:
-                    self.nSets[label] = self.nSets[strKey]
-                    self.nSets[label].name = label
-                    del self.nSets[strKey]
-                if strKey in self.elSets:
-                    self.elSets[label] = self.elSets[strKey]
-                    self.elSets[label].name = label
-                    del self.elSets[strKey]
 
             self.ensightExporter.setupModel(self.nodes, self.nSets, self.elements, self.elSets)
             self.ensightExporter.exportGeometry()
@@ -598,9 +599,6 @@ class ExportEngine:
         self.currentSetName = setName
         abqElements = filInt(recordContent[1:])
 
-        # print(setName)
-        # print(abqElements)
-
         self.elSetDefinitions[setName] = _ElSetDefinition(setName, [e for e in abqElements])
 
     def _contAddElset(self, recordContent):
@@ -613,7 +611,6 @@ class ExportEngine:
         """
 
         abqElements = filInt(recordContent)
-        # print(abqElements)
         self.elSetDefinitions[self.currentSetName].appendElementLabels([e for e in abqElements])
 
     def _createNodeSetDefinition(self, recordContent):
@@ -714,7 +711,6 @@ class ExportEngine:
 
     def _printEnergies(self, recordContent):
         """Print the total energies.
-        Currently not used!
 
         Parameters
         ----------
@@ -728,28 +724,63 @@ class ExportEngine:
             "Total plastic dissipation (ALLPD).",
             "Total viscoelastic dissipation (ALLCD).",
             "Total viscous dissipation (ALLVD).",
-            # "Currently not used.",
+            "Total loss of kinetic energy at impacts (ALLKL) (S).",
             "Total artificial strain energy (ALLAE).",
             "Total distortion control dissipation energy (ALLDC).",
-            # "Currently not used.",
+            "Total electrostatic energy (ALLEE) (S).",
             "Total strain energy (ALLIE).",
             "Total energy balance (ETOTAL).",
             "Total energy dissipated through frictional effects (ALLFD).",
-            # "Currently not used.",
+            "Total electrical energy dissipated in conductors (ALLJD) (S).",
             "Percent change in mass (DMASS).",
             "Total damage dissipation (ALLDMD).",
-            "Internal heat energy (ALLIHE).",
-            "External heat energy (ALLHF).",
+            "Internal heat energy (ALLIHE) (E).",
+            "External heat energy (ALLHF) (E).",
         ]
 
         # make a pretty table with a width of 40 characters
         t = PrettyTable(max_width=80, max_table_width=80)
         t.field_names = ["Energy type", "Value"]
-        for i, energy in enumerate(energyTypes):
-            t.add_row([energy, filDouble(recordContent)[i]])
-        # t._max_width = {"Energy type": 66, "Value": 10}
+        for value, energyType in zip(filDouble(recordContent), energyTypes):
+            t.add_row([energyType, value])
 
         # format values with only 5 digits
         t.float_format = "5.2"
 
         print(t)
+
+    def _printHeading1921(self, recordContent):
+        """Print the heading of the .fil file.
+
+        Parameters
+        ----------
+        recordContent
+            The fil record. Contains the heading information.
+        """
+        abqRelease = filStrippedString(recordContent[0])
+        date = filStrippedString(recordContent[1:3])
+        time = filStrippedString(recordContent[3])
+        nElements = filInt(recordContent[4])[0]
+        nNodes = filInt(recordContent[5])[0]
+        elLength = filDouble(recordContent[6])[0]
+
+        t = PrettyTable(max_width=80, max_table_width=80)
+        t = PrettyTable(min_width=80, min_table_width=80)
+        t.field_names = ["Abaqus release", "Date", "Time", "elements", "nodes"]
+        t.add_row([abqRelease, date, time, nElements, nNodes])
+        t.float_format = "5.2"
+
+        print(t)
+
+    def _assembleSubsitutionElSets(self, inputFile: dict):
+
+        elementSets = dict()
+        for elSetDefinition in inputFile["*substituteElSet"]:
+            name = elSetDefinition["elSet"]
+
+            data = elSetDefinition["data"]
+            elNumbers = [int(num) for line in data for num in line]
+
+            elementSets[name] = _ElSetDefinition(name, elNumbers)
+
+        return elementSets

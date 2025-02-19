@@ -144,6 +144,14 @@ typeMappings = {
             ),
         },
     ),
+    "*substituteElSet": (
+        "define an substitution for an element set in the .fil file. This is useful if you want to replace an element set with another one."
+        "For instance Abaqus/Explicit is know to write faulty element sets to the *.inp file if multiple cpu cores are used in combination with VUEL/VUMAT. ",
+        {
+            "elSet": (str, "The name of the set to be substituted"),
+            "data": ("string", "Abaqus like element set definition lines, i.e., the list of element labels."),
+        },
+    ),
     "*include": (
         "(optional) load extra .inp file (fragment), use relative path to current .inp",
         {"input": (str, "filename")},
@@ -217,6 +225,12 @@ def parseInputFile(fileName, currentKeyword=None, existingFileDict=None):
                     keyword = lastkeyword
                 else:
                     fileDict[keyword].append(objectentry)
+            else:
+                # line is a dataline
+                if "data" not in typeMappings[keyword][1]:
+                    raise KeyError("{:} expects no data lines".format(keyword))
+
+                fileDict[keyword][-1].setdefault("data", list()).append(lineElements)
     return fileDict
 
 
