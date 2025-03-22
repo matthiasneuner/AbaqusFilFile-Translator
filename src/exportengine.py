@@ -161,7 +161,7 @@ class _NSetDefinition:
 
 
 class ExportEngine:
-    def __init__(self, inputFile: dict, exportName: str):
+    def __init__(self, inputFile: dict, exportName: str, verbose: bool = False):
         """This is the export engine. It parses a .fil file record wise,
         and exports results based on user defined jobs.
 
@@ -171,6 +171,8 @@ class ExportEngine:
             The dictionary containing the input file.
         exportName
             The export name.
+        verbose
+            Add additional output in case of warnings.
         """
 
         self.uelSdvToQpJobs = self.collectUelSDVToQpJobs(inputFile["*UELSDVToQuadraturePoints"])
@@ -201,6 +203,7 @@ class ExportEngine:
         self.nIncrements = 0
         self.timeHistory = []
         self.labelCrossReferences = {}
+        self._verbose = verbose
 
         self.knownRecords = {
             1: ("Element header record", self._elementHeaderRecord),
@@ -303,11 +306,16 @@ class ExportEngine:
                     )
                 except KeyError as e:
                     print("Element set {:} not created!".format(elSetDef.name))
-                    print("Please check following element labels: {:}".format([int(i) for i in elSetDef.elementLabels]))
                     print(
-                        "For Abaqus/Explicit, it is observed that the definition of some element sets is faulty if multiple CPUs are used."
+                        "For Abaqus/Explicit, it is observed that the definition of some element sets is faulty if multiple CPUs are used. You may want to try the *substituteElSet keyword in the input file."
                     )
-                    print("Error: {:}".format(e))
+                    if self._verbose:
+                        print(
+                            "Please check following element labels: {:}".format(
+                                [int(i) for i in elSetDef.elementLabels]
+                            )
+                        )
+                        print("Error: {:}".format(e))
                     continue
 
             for nSetDef in self.nSetDefinitions.values():
@@ -552,13 +560,14 @@ class ExportEngine:
             coords = np.pad(coords, (0, 3 - coords.shape[0]), mode="constant")
 
         if label in self.nodes:
-            print(
-                "Node {:<6} {:} alrdy dfnd at {:}; ignoring".format(
-                    label,
-                    np.array2string(coords, precision=2, floatmode="fixed"),
-                    np.array2string(self.nodes[label].coords, precision=2, floatmode="fixed"),
+            if self._verbose:
+                print(
+                    "Node {:<6} {:} alrdy dfnd at {:}; ignoring".format(
+                        label,
+                        np.array2string(coords, precision=2, floatmode="fixed"),
+                        np.array2string(self.nodes[label].coords, precision=2, floatmode="fixed"),
+                    )
                 )
-            )
 
         self.nodes[label] = Node(label, coords)
 

@@ -13,114 +13,10 @@ import numpy as np
 import math
 from src.exportengine import ExportEngine, filInt
 from src.inputfileparser import parseInputFile, printKeywords
+from src.misc import fileSizeHumanReadable, getCurrentFileSize
+from src.filfileformat import FIL_BATCHSIZE, getCurrentMaxIdxEnd, getFilFileWords
 import time
 import textwrap
-
-# a word in a .fil file has a size of 8 bytes
-FIL_WORDSIZE = 8
-# a chunk in a .fil file consists of 513 words
-FIL_CHUNKSIZE = 513 * FIL_WORDSIZE
-# .fil files may become huge. We do not load them at once, but
-# but rather we split them into multiple batch sizes
-FIL_BATCHSIZE = FIL_CHUNKSIZE * 4096 * 32  # = ~ 538 MByte  ... size in BYTES
-
-
-def fileSizeHumanReadable(num: int, suffix: str = "B"):
-    """Pretty format bytes to a human readable form.
-
-    Parameters
-    ----------
-    int
-        The number.
-    suffix
-        The suffix.
-
-    Returns
-    -------
-    type
-        The pretty formatted string.
-    """
-
-    for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
-        if abs(num) < 1000:
-            return f"{num:3.1f} {unit}{suffix}"
-        num /= 1000
-    return f"{num:.1f} Y{suffix}"
-
-
-def getCurrentFileSize(
-    fn: str,
-):
-    """Determine the size of the .fil file.
-
-    Parameters
-    ----------
-    fn
-        The .fil file name.
-
-    Returns
-    -------
-    type
-        The file size.
-    """
-
-    fileStat = os.stat(fn)
-    fileSize = fileStat.st_size
-    return fileSize
-
-
-def getCurrentMaxIdxEnd(fn: str, fileIdx: str):
-    """Determine the maximum index in the .fil file depending on the current position.
-    It may be a complete chunk, or less if we are already near the end of the .fil file.
-
-    Parameters
-    ----------
-    fn
-        The .fil file name.
-    fileIdx
-        The current file index.
-
-    Returns
-    -------
-    type
-        The maximum allowed index in the file.
-    """
-
-    fileRemainder = fileSize - fileIdx  # remaining file size in BYTES
-    idxEnd = fileIdx + (FIL_BATCHSIZE if fileRemainder >= FIL_BATCHSIZE else fileRemainder)  # get end index
-    # in case we are operating on an unfinished file and 'catch' an unfinished chunk
-    idxEnd -= idxEnd % FIL_CHUNKSIZE
-    return idxEnd
-
-
-def getWords(fn, fileIdx, idxEnd):
-    """Get readable words between the fileIdx and idxEnd.
-
-    Parameters
-    ----------
-    fileIdx
-        The current file index.
-    idxEnd
-        The end index.
-
-    Returns
-    -------
-    type
-        The words.
-    """
-    fnMap = np.memmap(
-        fn,
-        dtype="b",
-        mode="r",
-    )
-    batchChunk = np.copy(fnMap[fileIdx:idxEnd])  # get chunk of file
-    words = batchChunk.reshape(-1, FIL_CHUNKSIZE)  # get words
-    # strip unused bytes. Probably they contain checksums,
-    # so we may leverage that feature in a future version.
-    words = words[:, 4:-4]
-    words = words.reshape(-1, 8)
-    return words
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A translator for Abaqus .fil files.")
@@ -138,6 +34,7 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument("--keywords", dest="kw", action="store_true", help="print keywords")
+    parser.add_argument("--verbose", dest="verbose", action="store_true", help="print verbose output")
     args = parser.parse_args()
 
     if args.kw:
@@ -155,27 +52,27 @@ if __name__ == "__main__":
     print("| Opening file {:<64}|".format(os.path.basename(fn)))
     print("+" + "-" * 78 + "+")
 
-    exportEngine = ExportEngine(exportJobs, exportName)
+    exportEngine = ExportEngine(exportJobs, exportName, verbose=args.verbose)
 
-    fileSize = getCurrentFileSize(fn)
-    numberOfBatchSteps = math.ceil(fileSize / FIL_BATCHSIZE)
+    currentFileSize = getCurrentFileSize(fn)
+    numberOfBatchSteps = math.ceil(currentFileSize / FIL_BATCHSIZE)
 
-    print("file has a size of {:}".format(fileSizeHumanReadable(fileSize)))
+    print("file has a size of {:}".format(fileSizeHumanReadable(currentFileSize)))
     print("file will be processed in {:} batch(es)".format(numberOfBatchSteps))
 
-    fileIdx = 0
+    currentFileIdx = 0
     wordIdx = 0
 
     parseFile = True
     while parseFile:
         try:
-            fileSize = getCurrentFileSize(
+            currentFileSize = getCurrentFileSize(
                 fn,
             )
 
-            if fileIdx < fileSize:
-                idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
-                words = getWords(fn, fileIdx, idxEnd)
+            if currentFileIdx < currentFileSize:
+                idxEnd = getCurrentMaxIdxEnd(fn, currentFileIdx, currentFileSize)
+                words = getFilFileWords(fn, currentFileIdx, idxEnd)
 
                 while wordIdx < len(words):
                     recordLength = filInt(words[wordIdx])[0]
@@ -184,11 +81,11 @@ if __name__ == "__main__":
                         if os.path.exists(lockFile):
                             print("found .lck file, waiting for new result .fil data")
                             time.sleep(5)
-                            fileSize = getCurrentFileSize(
+                            currentFileSize = getCurrentFileSize(
                                 fn,
                             )
-                            idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
-                            words = getWords(fn, fileIdx, idxEnd)
+                            idxEnd = getCurrentMaxIdxEnd(fn, currentFileIdx)
+                            words = getFilFileWords(fn, currentFileIdx, idxEnd)
                             continue
                         else:
                             parseFile = False
@@ -206,23 +103,23 @@ if __name__ == "__main__":
                                 print("found .lck file, waiting for new result .fil data")
                                 time.sleep(5)
 
-                                fileSize = getCurrentFileSize(
+                                currentFileSize = getCurrentFileSize(
                                     fn,
                                 )
-                                idxEnd = getCurrentMaxIdxEnd(fn, fileIdx)
-                                words = getWords(fn, fileIdx, idxEnd)
+                                idxEnd = getCurrentMaxIdxEnd(fn, currentFileIdx)
+                                words = getFilFileWords(fn, currentFileIdx, idxEnd)
 
                                 continue
                             else:
                                 parseFile = False
                                 break
 
-                        fileIdx += bytesProgressedInCurrentBatch  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
+                        currentFileIdx += bytesProgressedInCurrentBatch  # move to beginning of the current 512 word block in the batchChunk and restart with a new bathChunk
                         wordIdx = wordIdx % 512  # of course, restart at the present index
                         break
 
+                    # Time to process the record!
                     recordType = filInt(words[wordIdx + 1])[0]
-                    # print(recordType)
                     recordContent = words[wordIdx + 2 : wordIdx + recordLength]
                     success = exportEngine.computeRecord(recordLength, recordType, recordContent)
                     wordIdx += recordLength
@@ -230,7 +127,7 @@ if __name__ == "__main__":
                 # clean finish of a batchChunk
                 if wordIdx == len(words):
                     wordIdx = 0
-                    fileIdx = idxEnd
+                    currentFileIdx = idxEnd
                 del words
 
             else:
@@ -249,16 +146,16 @@ if __name__ == "__main__":
     print("+" + "-" * 78 + "+")
     print("| Summary of {:<66}|".format(os.path.basename(fn)))
     print("+" + "-" * 78 + "+")
-    print("{:<60}{:>20}".format("nodes:", len(exportEngine.nodes)))
-    print("{:<60}{:>20}".format("elements:", len(exportEngine.elements)))
-    print("{:<60}{:>20}".format("element sets:", len(exportEngine.elSets)))
+    print("|{:<60}{:>18}|".format("nodes:", len(exportEngine.nodes)))
+    print("|{:<60}{:>18}|".format("elements:", len(exportEngine.elements)))
+    print("|{:<60}{:>18}|".format("element sets:", len(exportEngine.elSets)))
     for setName, elSet in exportEngine.elSets.items():
         for i, (elType, elements) in enumerate(elSet.elementsByShape.items()):
-            print("{:<4}{:<46}{:10}{:>11} elements".format(" ", setName if not i else "", elType, len(elements)))
-    print("{:<60}{:>20}".format("node sets:", len(exportEngine.nSets)))
+            print("|{:<4}{:<46}{:10}{:>9} elements|".format(" ", setName if not i else "", elType, len(elements)))
+    print("|{:<60}{:>18}|".format("node sets:", len(exportEngine.nSets)))
     for setName, nSet in exportEngine.nSets.items():
-        print("{:<4}{:<46}{:10}{:>11}    nodes".format(" ", setName, "", len(nSet.nodes)))
-    print("{:<60}{:>20}".format("increments:", exportEngine.nIncrements))
+        print("|{:<4}{:<46}{:10}{:>9}    nodes|".format(" ", setName, "", len(nSet.nodes)))
+    print("|{:<60}{:>18}|".format("increments:", exportEngine.nIncrements))
     print("+" + "-" * 78 + "+")
     print("|{:78}|".format(" Finished"))
     print("+" + "-" * 78 + "+")
