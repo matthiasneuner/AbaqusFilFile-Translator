@@ -149,7 +149,7 @@ typeMappings = {
         "For instance Abaqus/Explicit is know to write faulty element sets to the *.inp file if multiple cpu cores are used in combination with VUEL/VUMAT. ",
         {
             "elSet": (str, "The name of the set to be substituted"),
-            "data": ("string", "Abaqus like element set definition lines, i.e., the list of element labels."),
+            "data": (str, "Abaqus like element set definition lines, i.e., the list of element labels."),
         },
     ),
     "*include": (

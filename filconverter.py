@@ -35,11 +35,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--keywords", dest="kw", action="store_true", help="print keywords")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="print verbose output")
-    args = parser.parse_args()
 
-    if args.kw:
+    #print keywords on argprase error:
+    if len(sys.argv) == 1:
+        parser.print_help()
         printKeywords()
         exit(0)
+    args = parser.parse_args()
 
     fn = args.fil
     jobFile = args.expDef

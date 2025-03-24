@@ -100,7 +100,7 @@ available keywords:
 
     *ensightPerNodeVariableJob    define an Ensight per node variable for export
 
-        dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor9; missing
+        dimensions                    integer       (optional), 1/3/6/9 for scalar/vector/tensor/tensor asym; missing
                                                     components will be zero filled
         name                          string        export name of the variable
         timeSet                       integer       (optional), define a timeset, for 'different' timelines
@@ -114,7 +114,8 @@ available keywords:
                                                     requires specified dimensions (slow!)
         job                           string        The associated export job
         result                        string        Abaqus variable identifier
-        set                           string        Abaqus element set
+        set                           string        Abaqus setname
+        setType                       string        elSet or nSet, default=elSet
         values                        string        (optional), define a index/slice to extract a subarray from the
                                                     total result array (per Element)
 
@@ -128,3 +129,12 @@ available keywords:
     *include    (optional) load extra .inp file (fragment), use relative path to current .inp
 
         input                         string        filename
+
+
+    *substituteElSet    define an substitution for an element set in the .fil file. This is useful if you want to
+                        replace an element set with another one.For instance Abaqus/Explicit is know to write faulty
+                        element sets to the *.inp file if multiple cpu cores are used in combination with VUEL/VUMAT.
+
+        data                          string        Abaqus like element set definition lines, i.e., the list of element
+                                                    labels.
+        elSet                         string        The name of the set to be substituted
