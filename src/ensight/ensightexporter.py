@@ -259,7 +259,7 @@ class EnsightExporter:
                 results = [r[jobEntry.extractionSlice] if r is not None else r for r in results]
 
             if jobEntry.extractionFunction is not None:
-                results = [perSetJobEntry.extractionFunction(r) if r is not None else r for r in results]
+                results = [jobEntry.extractionFunction(r) if r is not None else r for r in results]
 
             if jobEntry.fillMissingValuesTo is not None:
                 defaultResult = np.full((exportJob.dimensions,), jobEntry.fillMissingValuesTo)
@@ -285,6 +285,7 @@ class EnsightExporter:
                 results = np.asarray(results, dtype=float)
                 if results.size == 0:
                     continue  # no results for this set
+                results = np.reshape(results, (results.shape[0], -1))  # ensure that dimensions are kept
             except:
                 raise Exception(
                     "Failed to set up all results {:} for all nodes in {:}. Try using fillMissingValuesTo= option?".format(

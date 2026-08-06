@@ -8,6 +8,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 from collections import defaultdict
 import os
+import numpy as np
 
 
 class RecursiveDefaultDict(dict):
