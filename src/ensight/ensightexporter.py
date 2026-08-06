@@ -182,7 +182,7 @@ class EnsightExporter:
             which = entry["which"]
 
             if location == "qps":
-                which = int(w)
+                which = int(which)
 
             perSetJob = _EnsightPerSetJobEntry(
                 job,
@@ -335,6 +335,7 @@ class EnsightExporter:
                     )
                     if results.size == 0:
                         continue  # no results for this element type
+                    results = np.reshape(results, (results.shape[0], -1))  # ensure that dimensions are kept
                 except:
                     raise Exception(
                         "Failed to retrieve result '{:}' in '{:}/{:}' for set {:}. Does it exist?".format(
